@@ -1,0 +1,2725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Blast Round</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#0b0d16;
+    --panel:#161a2c;
+    --panel-2:#1d2238;
+    --line: rgba(255,255,255,0.06);
+    --ink:#eef0fb;
+    --ink-dim:#8a90b3;
+    --accent:#7c8bff;
+    --accent-2:#5ee7d0;
+    --danger:#ff5f6d;
+    --radius: 14px;
+    /* Reactive ambient background colors — updated in JS whenever the
+       active color theme changes (see applyAmbientTheme()). */
+    --amb-1:#7c8bff;
+    --amb-2:#5ee7d0;
+    --amb-3:#ff2fb0;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; min-height:100%;
+    background:
+      radial-gradient(1100px 600px at 15% -10%, #1c2140 0%, transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, #14243a 0%, transparent 55%),
+      var(--bg-0);
+    color:var(--ink);
+    font-family:'Inter', system-ui, sans-serif;
+    overflow-x:hidden;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .display{ font-family:'Space Grotesk', 'Inter', sans-serif; }
+
+  /* ---------- AMBIENT BACKGROUND ---------- */
+  /* Lightweight CSS-only floating glow layer — no Canvas, no JS animation
+     loop. Just a handful of blurred, absolutely-positioned circles drifting
+     via CSS keyframes (opacity/transform only, so it's cheap to composite).
+     Colors follow the active shop theme via --amb-1/2/3 custom properties. */
+  #ambient-bg{
+    position:fixed; inset:0;
+    overflow:hidden;
+    pointer-events:none;
+    z-index:0;
+  }
+  .floaty{
+    position:absolute;
+    border-radius:50%;
+    filter:blur(20px);
+    opacity:0.28;
+    will-change:transform;
+    animation-name:floaty-drift;
+    animation-timing-function:ease-in-out;
+    animation-iteration-count:infinite;
+  }
+  .f1{ width:180px; height:180px; left:8%;  top:12%; background:var(--amb-1); animation-duration:26s; }
+  .f2{ width:140px; height:140px; left:72%; top:58%; background:var(--amb-2); animation-duration:32s; animation-delay:-6s; }
+  .f3{ width:220px; height:220px; left:38%; top:78%; background:var(--amb-3); animation-duration:38s; animation-delay:-14s; }
+  .f4{ width:120px; height:120px; left:86%; top:8%;  background:var(--amb-1); animation-duration:22s; animation-delay:-3s; }
+  .f5{ width:160px; height:160px; left:16%; top:66%; background:var(--amb-2); animation-duration:30s; animation-delay:-10s; }
+  .f6{ width:100px; height:100px; left:55%; top:22%; background:var(--amb-3); animation-duration:20s; animation-delay:-8s; }
+  @keyframes floaty-drift{
+    0%{   transform:translate(0,0) scale(1); }
+    25%{  transform:translate(26px,-34px) scale(1.08); }
+    50%{  transform:translate(-18px,18px) scale(0.94); }
+    75%{  transform:translate(22px,30px) scale(1.05); }
+    100%{ transform:translate(0,0) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .floaty{ animation:none; }
+  }
+
+  #app{
+    position:relative;
+    z-index:1;
+    min-height:100%;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    padding: clamp(8px,2.4vh,22px) 12px 24px;
+    position:relative;
+    user-select:none;
+  }
+
+  /* ---------- HEADER ---------- */
+  .header{
+    width:min(94vw, 480px);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom: clamp(8px,2vh,16px);
+  }
+  .brand{ display:flex; flex-direction:column; line-height:1; }
+  .brand .title{
+    font-size: clamp(17px,4.6vw,26px);
+    font-weight:700;
+    letter-spacing:-0.02em;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .brand .subtitle{
+    margin-top:4px; font-size:11px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--ink-dim);
+  }
+  .scores{ display:flex; gap:6px; }
+  .score-box{
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius:11px;
+    padding:7px 9px;
+    min-width:58px;
+    text-align:center;
+    box-shadow: 0 6px 18px -8px rgba(0,0,0,0.6);
+  }
+  .score-box .label{
+    font-size:8.5px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--ink-dim); margin-bottom:2px;
+    white-space:nowrap;
+  }
+  .score-box .value{
+    font-family:'Space Grotesk', sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight:700; font-size:16.5px; color:var(--ink);
+    white-space:nowrap;
+  }
+  .score-box.best .value{ color: var(--accent-2); }
+  .score-box.coins .value{ color: #ffd166; }
+
+  .shop-open-btn{
+    border:none; outline:none; cursor:pointer;
+    background: var(--panel);
+    border:1px solid var(--line);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    font-weight:600;
+    font-size:12.5px;
+    padding:8px 16px;
+    border-radius:12px;
+    margin-bottom:10px;
+    box-shadow: 0 8px 18px -10px rgba(0,0,0,0.6);
+    transition: transform .1s ease;
+  }
+  .shop-open-btn:active{ transform: scale(0.96); }
+
+  #mana-bar-wrap{
+    display:flex; align-items:center; gap:8px;
+    width:min(94vw, 480px);
+    margin-bottom:10px;
+  }
+  #mana-bar{
+    flex:1; height:12px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius:7px;
+    overflow:hidden;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+  }
+  #mana-fill{
+    height:100%; width:0%;
+    background: linear-gradient(90deg, #9d4edd, #c77dff);
+    box-shadow: 0 0 10px 1px rgba(199,125,255,0.6);
+    transition: width .35s ease;
+  }
+  #mana-btn.full{
+    background: rgba(199,125,255,0.18);
+    box-shadow: 0 0 0 2px #c77dff, 0 8px 18px -10px rgba(0,0,0,0.6);
+    animation: mana-pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes mana-pulse{
+    0%,100%{ filter:brightness(1); }
+    50%{ filter:brightness(1.35); }
+  }
+  .shop-open-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  /* ---------- BOSS + QUESTS ---------- */
+  #boss-row{
+    display:flex; align-items:center; gap:8px;
+    width:min(94vw, 480px);
+    margin-bottom:10px;
+  }
+  #boss-info-wrap{ flex:1; min-width:0; position:relative; }
+  .boss-info{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-family:'Space Grotesk', sans-serif;
+    font-size:11.5px; color:var(--ink-dim);
+    margin-bottom:3px;
+  }
+  .boss-info #boss-name{ color:var(--ink); font-weight:700; font-size:12.5px; }
+  #boss-hp-bar{
+    height:10px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+  }
+  #boss-hp-fill{
+    height:100%; width:100%;
+    background: linear-gradient(90deg, #ff5f6d, #ff9f43);
+    transition: width .3s ease, background .3s ease;
+  }
+  #quests-btn{ font-size:15px; padding:8px 12px; }
+
+  /* Boss attack/hit feedback — a quick shake on the whole panel, a bright
+     flash on the HP fill itself, and a floating "-N" damage number. */
+  #boss-info-wrap.boss-hit{ animation: boss-shake .32s ease; }
+  @keyframes boss-shake{
+    0%,100%{ transform:translateX(0); }
+    20%{ transform:translateX(-4px); }
+    40%{ transform:translateX(4px); }
+    60%{ transform:translateX(-3px); }
+    80%{ transform:translateX(3px); }
+  }
+  #boss-hp-fill.flash{ animation: boss-flash .32s ease; }
+  @keyframes boss-flash{
+    0%{ filter:brightness(1); }
+    30%{ filter:brightness(2.2) saturate(1.3); box-shadow:0 0 14px 2px rgba(255,159,67,0.8); }
+    100%{ filter:brightness(1); }
+  }
+  .boss-dmg-pop{
+    position:absolute;
+    right:2px; top:-6px;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:800;
+    font-size:15px;
+    color:#ff5f6d;
+    text-shadow: 0 0 8px rgba(255,95,109,0.85), 0 0 2px rgba(0,0,0,0.6);
+    pointer-events:none;
+    z-index:10;
+    animation: boss-dmg-float .7s ease forwards;
+  }
+  @keyframes boss-dmg-float{
+    0%{ opacity:0; transform:translateY(0) scale(0.8); }
+    20%{ opacity:1; transform:translateY(-6px) scale(1.1); }
+    100%{ opacity:0; transform:translateY(-26px) scale(1); }
+  }
+
+  .quest-item{
+    background: var(--bg-0);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:12px;
+    margin-bottom:10px;
+  }
+  .quest-item.completed{ opacity:0.55; }
+  .quest-item-top{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom:7px; gap:8px;
+  }
+  .quest-item-label{ font-size:13px; color:var(--ink); font-weight:600; }
+  .quest-item-reward{ font-size:11.5px; color:#ffd166; white-space:nowrap; }
+  .quest-progress-bar{
+    height:8px;
+    background: var(--panel-2);
+    border-radius:5px;
+    overflow:hidden;
+  }
+  .quest-progress-fill{
+    height:100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .3s ease;
+  }
+  .quest-progress-text{
+    font-size:10.5px; color:var(--ink-dim); margin-top:4px; text-align:right;
+  }
+
+  .boss-defeat-pop{
+    position:absolute; left:50%; top:30%;
+    transform:translate(-50%,-50%) scale(0.7);
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size: clamp(16px,4.2vw,24px);
+    color:#ffd166;
+    text-shadow: 0 0 18px rgba(255,209,102,0.9), 0 0 4px rgba(255,255,255,0.6);
+    pointer-events:none; opacity:0; z-index:35;
+    animation: popfade 1.4s ease forwards; white-space:nowrap;
+  }
+
+  /* ---------- BOARD ---------- */
+  #board-wrap{ position:relative; margin-bottom: 10px; }
+  #board-viewport{
+    position:relative;
+    width: min(90vw, 54vh, 420px);
+    height: min(90vw, 54vh, 420px);
+    border-radius: 20px;
+    overflow:hidden;
+    border:1px solid var(--line);
+    box-shadow:
+      0 20px 50px -20px rgba(0,0,0,0.7),
+      inset 0 1px 0 rgba(255,255,255,0.06);
+    touch-action:none;
+    background: linear-gradient(160deg, #1b2035, #12141f);
+  }
+  #board-viewport.panning #board{ transition:none; }
+  #board-viewport.hammer-mode-active{
+    animation: hammer-mode-pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes hammer-mode-pulse{
+    0%,100%{ box-shadow: 0 0 0 3px rgba(94,231,208,0.35), 0 20px 50px -20px rgba(0,0,0,0.7); }
+    50%{ box-shadow: 0 0 0 3px rgba(94,231,208,0.9), 0 0 22px 4px rgba(94,231,208,0.55), 0 20px 50px -20px rgba(0,0,0,0.7); }
+  }
+  #board{
+    display:grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(10, 1fr);
+    gap: 3px;
+    width: 100%;
+    height: 100%;
+    padding:8px;
+    transform-origin: 0 0;
+    transition: transform .15s ease;
+    will-change: transform;
+  }
+  .cell{
+    border-radius:6px;
+    background: rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.08);
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    line-height:1;
+    transition: background .12s ease, box-shadow .12s ease;
+  }
+  .cell.filled{
+    border:none;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18), 0 3px 8px -3px rgba(0,0,0,0.6);
+  }
+  .cell.cell-ice{
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4), 0 0 9px 1px rgba(160,225,255,0.55);
+  }
+  .cell.cell-tnt{
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2), 0 0 10px 2px rgba(255,90,40,0.5);
+  }
+  .cell.cell-bomb{
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25), 0 0 12px 3px rgba(255,60,20,0.65);
+    font-weight:800;
+    color:#fff;
+    animation: bomb-pulse 1s ease-in-out infinite;
+  }
+  @keyframes bomb-pulse{
+    0%,100%{ filter:brightness(1); transform:scale(1); }
+    50%{ filter:brightness(1.5); transform:scale(1.05); }
+  }
+  .cell.hl-valid{
+    background: rgba(94,231,208,0.28) !important;
+    box-shadow: inset 0 0 0 2px rgba(94,231,208,0.65);
+  }
+  .cell.hl-invalid{
+    background: rgba(255,95,109,0.24) !important;
+    box-shadow: inset 0 0 0 2px rgba(255,95,109,0.55);
+  }
+  .cell.clearing{ animation: shatter .38s ease forwards; z-index:5; }
+  @keyframes shatter{
+    0%{ filter:brightness(1); transform:scale(1); }
+    30%{ filter:brightness(2.4) saturate(1.4); transform:scale(1.08); box-shadow:0 0 22px 4px rgba(255,255,255,0.55);}
+    100%{ filter:brightness(2.6); transform:scale(0.35); opacity:0; }
+  }
+
+  .particle{
+    position:fixed;
+    top:0; left:0;
+    border-radius:3px;
+    pointer-events:none;
+    z-index:1500;
+    transform: translate(-50%,-50%);
+    animation: particle-fly .6s cubic-bezier(.15,.7,.3,1) forwards;
+    box-shadow: 0 0 6px rgba(255,255,255,0.55);
+  }
+  @keyframes particle-fly{
+    0%{ transform: translate(-50%,-50%) translate(0,0) scale(1) rotate(0deg); opacity:1; }
+    70%{ opacity:1; }
+    100%{ transform: translate(-50%,-50%) translate(var(--tx), var(--ty)) scale(0.25) rotate(var(--rot)); opacity:0; }
+  }
+
+  .cell.dropping{
+    z-index:6;
+    animation: cell-drop .24s cubic-bezier(.3,.85,.4,1);
+  }
+  @keyframes cell-drop{
+    0%{ transform: translateY(var(--drop-distance)); }
+    100%{ transform: translateY(0); }
+  }
+
+  .combo-pop{
+    position:absolute; left:50%; top:38%;
+    transform:translate(-50%,-50%) scale(0.7);
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size: clamp(18px,4.6vw,28px);
+    color:var(--ink);
+    text-shadow: 0 0 18px rgba(124,139,255,0.9), 0 0 4px rgba(255,255,255,0.6);
+    pointer-events:none; opacity:0; z-index:30;
+    animation: popfade 1s ease forwards; white-space:nowrap;
+  }
+  @keyframes popfade{
+    0%{ opacity:0; transform:translate(-50%,-40%) scale(0.6); }
+    18%{ opacity:1; transform:translate(-50%,-52%) scale(1.08); }
+    35%{ transform:translate(-50%,-52%) scale(1); }
+    100%{ opacity:0; transform:translate(-50%,-70%) scale(1); }
+  }
+
+  /* ---------- ZOOM / PAN CONTROLS ---------- */
+  #zoom-bar{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    margin-top:10px;
+    margin-bottom:6px;
+  }
+  .zoom-btn{
+    width:34px; height:34px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background: var(--panel);
+    color:var(--ink);
+    font-size:17px;
+    font-weight:600;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 6px 14px -8px rgba(0,0,0,0.6);
+    transition: transform .1s ease, background .15s ease;
+  }
+  .zoom-btn:active{ transform:scale(0.92); }
+  .zoom-btn.reset{ font-size:12px; width:auto; padding:0 12px; letter-spacing:0.02em; }
+  #zoom-label{
+    min-width:46px;
+    text-align:center;
+    font-family:'Space Grotesk', sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-size:12.5px;
+    color:var(--ink-dim);
+  }
+
+  /* ---------- TRAY ---------- */
+  #tray{
+    display:flex;
+    gap: clamp(8px, 3vw, 22px);
+    align-items:center;
+    justify-content:center;
+    width: min(92vw, 440px);
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding: 12px 10px;
+    min-height: 92px;
+    box-shadow: 0 12px 30px -18px rgba(0,0,0,0.7);
+  }
+  .slot{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:70px;
+    border-radius:12px;
+    position:relative;
+  }
+  .piece{ cursor:grab; touch-action:none; transition: opacity .2s ease, filter .2s ease; }
+  .piece.piece-blocked{
+    opacity:0.4;
+    filter: grayscale(0.85);
+  }
+  .block{
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    line-height:1;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25), 0 3px 6px -2px rgba(0,0,0,0.5);
+  }
+  .ghost{
+    position:fixed; top:0; left:0;
+    pointer-events:none; z-index:1000; opacity:0.96;
+    filter: drop-shadow(0 14px 20px rgba(0,0,0,0.55));
+  }
+  .piece.dragging-source{ opacity:0.18; }
+
+  .rotate-btn{
+    position:absolute;
+    top:2px; right:2px;
+    width:24px; height:24px;
+    border-radius:50%;
+    border:1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--accent-2);
+    font-size:13px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow: 0 4px 10px -4px rgba(0,0,0,0.7);
+    z-index:5;
+    transition: transform .12s ease, background .12s ease;
+  }
+  .rotate-btn:active{ transform: scale(0.88) rotate(45deg); }
+
+  /* ---------- GAME OVER ---------- */
+  #overlay{
+    position:fixed; inset:0;
+    background: rgba(8,9,16,0.78);
+    backdrop-filter: blur(6px);
+    display:none; align-items:center; justify-content:center;
+    z-index:2000;
+  }
+  #overlay.show{ display:flex; }
+  .go-card{
+    background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border:1px solid var(--line);
+    border-radius:22px;
+    padding: 34px 30px;
+    text-align:center;
+    width: min(84vw, 320px);
+    box-shadow: 0 30px 70px -20px rgba(0,0,0,0.8);
+    animation: cardIn .32s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @keyframes cardIn{
+    0%{ opacity:0; transform:translateY(14px) scale(0.94); }
+    100%{ opacity:1; transform:translateY(0) scale(1); }
+  }
+  .go-card .go-title{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size:24px; letter-spacing:-0.01em; margin-bottom:6px;
+    background: linear-gradient(120deg, var(--danger), var(--accent));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .go-card .go-sub{ color:var(--ink-dim); font-size:13px; margin-bottom:20px; }
+  .go-stats{ display:flex; gap:10px; justify-content:center; margin-bottom:24px; }
+  .go-stats .score-box{ min-width:100px; }
+  #restart-btn{
+    border:none; outline:none; cursor:pointer; width:100%;
+    padding:13px 18px; border-radius:12px;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    color:#0b0d16;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size:15px; letter-spacing:0.01em;
+    box-shadow: 0 10px 24px -8px rgba(124,139,255,0.6);
+    transition: transform .12s ease;
+  }
+  #restart-btn:active{ transform: scale(0.97); }
+
+  .rescue-btn{
+    border:1px solid rgba(255,209,102,0.35);
+    outline:none; cursor:pointer; width:100%;
+    padding:12px 18px; border-radius:12px;
+    background: rgba(255,209,102,0.1);
+    color:#ffd166;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size:13.5px; letter-spacing:0.01em;
+    margin-bottom:10px;
+    transition: transform .12s ease, background .15s ease, opacity .15s ease;
+  }
+  .rescue-btn:active{ transform: scale(0.97); }
+  .rescue-btn:disabled{
+    opacity:0.35;
+    cursor:not-allowed;
+    transform:none;
+  }
+
+  .hint{ margin-top:2px; font-size:11px; color:var(--ink-dim); text-align:center; max-width:340px; }
+
+  /* ---------- SHOP ---------- */
+  #shop-overlay, #quests-overlay{
+    position:fixed; inset:0;
+    background: rgba(8,9,16,0.78);
+    backdrop-filter: blur(6px);
+    display:none; align-items:center; justify-content:center;
+    z-index:2100;
+    padding:16px;
+  }
+  #shop-overlay.show, #quests-overlay.show{ display:flex; }
+  .shop-card{
+    background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border:1px solid var(--line);
+    border-radius:22px;
+    padding: 22px 20px 26px;
+    width: min(90vw, 360px);
+    max-height: 82vh;
+    overflow-y: auto;
+    box-shadow: 0 30px 70px -20px rgba(0,0,0,0.8);
+    animation: cardIn .32s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .shop-header{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:4px;
+  }
+  .shop-header button{
+    border:none; background:transparent; color:var(--ink-dim);
+    font-size:16px; cursor:pointer; padding:4px 8px;
+  }
+  .shop-sub{ color:var(--ink-dim); font-size:12.5px; margin-bottom:16px; line-height:1.4; }
+  .shop-item{
+    display:flex; align-items:center; gap:12px;
+    background: var(--bg-0);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:12px;
+    margin-bottom:10px;
+  }
+  .shop-swatch{ display:flex; gap:4px; flex-shrink:0; }
+  .shop-swatch span{
+    width:14px; height:14px; border-radius:4px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25);
+  }
+  .shop-item-info{ flex:1; min-width:0; }
+  .shop-item-name{ font-weight:600; font-size:13.5px; color:var(--ink); }
+  .shop-item-status{ font-size:11px; color:var(--ink-dim); margin-top:2px; }
+  .shop-item-btn{
+    border:none; cursor:pointer; border-radius:10px;
+    padding:8px 12px; font-size:12px; font-weight:700;
+    font-family:'Space Grotesk', sans-serif;
+    flex-shrink:0;
+    transition: transform .1s ease, opacity .12s ease;
+  }
+  .shop-item-btn:active{ transform: scale(0.95); }
+  .shop-item-btn.buy{
+    background: linear-gradient(120deg, #ffd166, #ff9f43);
+    color:#241a05;
+  }
+  .shop-item-btn.select{
+    background: var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--ink);
+  }
+  .shop-item-btn.active{
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    color:#0b0d16;
+  }
+  .shop-item-btn:disabled{ opacity:0.45; cursor:not-allowed; }
+</style>
+</head>
+<body>
+<div id="ambient-bg" aria-hidden="true">
+  <span class="floaty f1"></span>
+  <span class="floaty f2"></span>
+  <span class="floaty f3"></span>
+  <span class="floaty f4"></span>
+  <span class="floaty f5"></span>
+  <span class="floaty f6"></span>
+</div>
+<div id="app">
+  <div class="header">
+    <div class="brand">
+      <div class="title display">Blast&nbsp;Round</div>
+      <div class="subtitle">10×10 • ice • TNT • cascades</div>
+    </div>
+    <div class="scores">
+      <div class="score-box">
+        <div class="label">Score</div>
+        <div class="value" id="score-val">0</div>
+      </div>
+      <div class="score-box best">
+        <div class="label">Best</div>
+        <div class="value" id="best-val">0</div>
+      </div>
+      <div class="score-box coins">
+        <div class="label">Coins</div>
+        <div class="value" id="coins-val">🪙 0</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+    <button id="shop-btn" class="shop-open-btn" style="margin-bottom:0;">🛍️ Shop</button>
+    <button id="hammer-btn" class="shop-open-btn" style="margin-bottom:0; border-color: var(--accent-2); color: var(--accent-2);">🔨 Hammer (15 🪙)</button>
+    <button id="shuffle-btn" class="shop-open-btn" style="margin-bottom:0; border-color:#ffd166; color:#ffd166;">🔀 Shuffle (25 🪙)</button>
+  </div>
+
+  <div id="mana-bar-wrap">
+    <div id="mana-bar"><div id="mana-fill"></div></div>
+    <button id="mana-btn" class="shop-open-btn" style="margin-bottom:0; border-color:#c77dff; color:#c77dff;" disabled>✨ Moc many</button>
+  </div>
+
+  <div id="boss-row">
+    <div id="boss-info-wrap">
+      <div class="boss-info">
+        <span id="boss-name">Boss</span>
+        <span id="boss-level">Lv.1</span>
+      </div>
+      <div id="boss-hp-bar"><div id="boss-hp-fill"></div></div>
+    </div>
+    <button id="quests-btn" class="shop-open-btn" style="margin-bottom:0;" aria-label="Quests">📜</button>
+  </div>
+
+  <div id="board-wrap">
+    <div id="board-viewport">
+      <div id="board"></div>
+    </div>
+  </div>
+
+  <div id="zoom-bar">
+    <button class="zoom-btn" id="zoom-out" aria-label="Zoom out">−</button>
+    <div id="zoom-label">100%</div>
+    <button class="zoom-btn" id="zoom-in" aria-label="Zoom in">+</button>
+    <button class="zoom-btn reset" id="zoom-reset" aria-label="Center and reset zoom">Reset</button>
+  </div>
+
+  <div id="tray">
+    <div class="slot" data-slot="0"></div>
+    <div class="slot" data-slot="1"></div>
+    <div class="slot" data-slot="2"></div>
+  </div>
+
+  <div class="hint">❄ Ice needs 2 hits to disappear • 💣 TNT explodes 3×3 when it clears a line • Drag a piece • Tap ↻ to rotate it</div>
+</div>
+
+<div id="overlay">
+  <div class="go-card">
+    <div class="go-title display">Game Over</div>
+    <div class="go-sub">No room left for another move</div>
+    <div class="go-stats">
+      <div class="score-box">
+        <div class="label">Score</div>
+        <div class="value" id="final-score">0</div>
+      </div>
+      <div class="score-box best">
+        <div class="label">Best</div>
+        <div class="value" id="final-best">0</div>
+      </div>
+    </div>
+    <button id="rescue-btn" class="rescue-btn">🎬 Rescue Me — remove 3 blocks</button>
+    <button id="restart-btn">Play Again</button>
+  </div>
+</div>
+
+<div id="shop-overlay">
+  <div class="shop-card">
+    <div class="shop-header">
+      <div class="go-title display" style="font-size:20px;">Color Shop</div>
+      <button id="shop-close" aria-label="Close shop">✕</button>
+    </div>
+    <div class="shop-sub">Your coins: <span id="shop-coins">0</span> 🪙 — 1 coin per line cleared</div>
+    <div id="shop-list"></div>
+  </div>
+</div>
+
+<div id="quests-overlay">
+  <div class="shop-card">
+    <div class="shop-header">
+      <div class="go-title display" style="font-size:20px;">Quests</div>
+      <button id="quests-close" aria-label="Close quests">✕</button>
+    </div>
+    <div class="shop-sub">Complete quests during this run to earn rewards</div>
+    <div id="quests-list"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const SIZE = 10;
+  const BOARD_PAD = 8;
+  const BOARD_GAP = 3;
+
+  // block type codes
+  const T_EMPTY  = 0;
+  const T_NORMAL = 1;
+  const T_ICE    = 2;
+  const T_TNT    = 3;
+  const T_BOMB   = 4; // unstable countdown block — a boss counterattack
+
+  // -----------------------------------------------------------------------
+  // Retro sound effects — synthesized entirely with the Web Audio API, no
+  // audio files. The AudioContext is created lazily on first use (browsers
+  // require a user gesture before audio can play, and every call site below
+  // is already inside a click/drag handler, so that's satisfied naturally).
+  // -----------------------------------------------------------------------
+  let audioCtx = null;
+  function getAudioCtx(){
+    if(!audioCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return null;
+      audioCtx = new AC();
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  // Short descending square-wave blip — a satisfying "click" for rotating a piece.
+  function playRotateClick(){
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(900, t0);
+    osc.frequency.exponentialRampToValueAtTime(420, t0 + 0.06);
+    gain.gain.setValueAtTime(0.15, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.07);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.08);
+  }
+
+  // Two slightly-detuned descending sine tones (a glassy "shimmer") plus a
+  // brief high-passed noise crackle — an icy "freeze" sound.
+  function playFreezeSound(){
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    const t0 = ctx.currentTime;
+
+    [1, 1.006].forEach((detune)=>{
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1400 * detune, t0);
+      osc.frequency.exponentialRampToValueAtTime(500 * detune, t0 + 0.3);
+      gain.gain.setValueAtTime(0.16, t0);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.32);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.33);
+    });
+
+    const bufferSize = Math.floor(ctx.sampleRate * 0.15);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2 - 1) * (1 - i/bufferSize);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'highpass';
+    noiseFilter.frequency.value = 3000;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.09, t0);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
+    noise.connect(noiseFilter).connect(noiseGain).connect(ctx.destination);
+    noise.start(t0);
+  }
+
+  // Low sine "thump" sweeping down + a filtered noise burst — a punchy
+  // retro 8-bit-style explosion "boom" for TNT.
+  function playExplosionSound(){
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    const t0 = ctx.currentTime;
+
+    const thump = ctx.createOscillator();
+    const thumpGain = ctx.createGain();
+    thump.type = 'sine';
+    thump.frequency.setValueAtTime(150, t0);
+    thump.frequency.exponentialRampToValueAtTime(40, t0 + 0.35);
+    thumpGain.gain.setValueAtTime(0.5, t0);
+    thumpGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.4);
+    thump.connect(thumpGain).connect(ctx.destination);
+    thump.start(t0);
+    thump.stop(t0 + 0.4);
+
+    const bufferSize = Math.floor(ctx.sampleRate * 0.5);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = Math.random()*2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(3500, t0);
+    filter.frequency.exponentialRampToValueAtTime(200, t0 + 0.5);
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.35, t0);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+    noise.connect(filter).connect(noiseGain).connect(ctx.destination);
+    noise.start(t0);
+  }
+
+  // -----------------------------------------------------------------------
+  // GameBoard — index-based board engine.
+  //
+  //   grid[i]   : block type at cell i  (0 empty / 1 normal / 2 ice / 3 tnt)
+  //   colors[i] : palette color index (0-7), meaningful only where grid[i]!=0
+  //   i = r * size + c
+  //
+  // Design notes (per spec):
+  //  - Ice (2) never moves and blocks anything above it from falling through
+  //    (selective gravity / "hard shelf"). It only converts to a normal
+  //    block (1) when a directly adjacent cell (up/down/left/right) is
+  //    destroyed — by a line clear OR by a TNT blast. It is NEVER destroyed
+  //    directly itself, only cracked.
+  //  - TNT (3), when destroyed (by a line clear or by another TNT's blast),
+  //    explodes and destroys every block in the 3x3 area centered on it.
+  //    TNT chain-reacts with other TNT in range.
+  //  - applyGravity() and _destroyBatch()/_processExplosions() work purely
+  //    on typed-array indices — no per-cell object allocation in the hot
+  //    loops. The only allocations are the small result containers the
+  //    caller explicitly asks for (a flat drop-info array, a destroyed map).
+  // -----------------------------------------------------------------------
+  class GameBoard {
+    constructor(size){
+      this.size = size;
+      this.grid = new Uint8Array(size * size);
+      this.colors = new Uint8Array(size * size);
+      // blockIds[i] = which placed "object" cell i belongs to (0 = none).
+      // Lets gravity move a whole placed piece as one rigid body instead of
+      // each cell falling independently — see applyGravity() below.
+      this.blockIds = new Uint16Array(size * size);
+      this._nextBlockId = 1;
+      // bombTimers[i] = remaining moves before a T_BOMB cell at i detonates
+      // (0 everywhere except active bombs). Travels with its cell through
+      // gravity/placement just like colors/blockIds.
+      this.bombTimers = new Uint8Array(size * size);
+    }
+
+    idx(r, c){ return r * this.size + c; }
+    inBounds(r, c){ return r >= 0 && r < this.size && c >= 0 && c < this.size; }
+
+    reset(){
+      this.grid.fill(0);
+      this.colors.fill(0);
+      this.blockIds.fill(0);
+      this.bombTimers.fill(0);
+    }
+
+    countFilled(){
+      let n = 0;
+      const grid = this.grid;
+      for(let i = 0; i < grid.length; i++) if(grid[i] !== T_EMPTY) n++;
+      return n;
+    }
+
+    // cells: array of [dr, dc] offsets
+    canPlaceAt(cells, r0, c0){
+      const n = this.size, grid = this.grid;
+      for(let i = 0; i < cells.length; i++){
+        const r = r0 + cells[i][0], c = c0 + cells[i][1];
+        if(r < 0 || r >= n || c < 0 || c >= n) return false;
+        if(grid[r * n + c] !== T_EMPTY) return false;
+      }
+      return true;
+    }
+
+    canPlaceAnywhere(cells){
+      const n = this.size;
+      for(let r = 0; r < n; r++){
+        for(let c = 0; c < n; c++){
+          if(this.canPlaceAt(cells, r, c)) return true;
+        }
+      }
+      return false;
+    }
+
+    // cellsSpec: array of [dr, dc, type] (type defaults to NORMAL). Every
+    // cell of a single place() call shares one fresh blockId — that's what
+    // makes the piece fall together as a rigid object later.
+    place(cellsSpec, r0, c0, color){
+      const n = this.size, grid = this.grid, colors = this.colors, blockIds = this.blockIds;
+      const blockId = this._nextBlockId++;
+      for(let i = 0; i < cellsSpec.length; i++){
+        const dr = cellsSpec[i][0], dc = cellsSpec[i][1];
+        const type = cellsSpec[i][2] || T_NORMAL;
+        const idx = (r0 + dr) * n + (c0 + dc);
+        grid[idx] = type;
+        colors[idx] = color;
+        blockIds[idx] = blockId;
+      }
+    }
+
+    // Drops a T_BOMB counterattack onto an empty cell with the given
+    // countdown (in player moves). Returns false if the cell wasn't empty.
+    spawnBomb(idx, turns){
+      if(this.grid[idx] !== T_EMPTY) return false;
+      this.grid[idx] = T_BOMB;
+      this.colors[idx] = 0;
+      this.blockIds[idx] = this._nextBlockId++;
+      this.bombTimers[idx] = turns;
+      return true;
+    }
+
+    // Call once per player move. Decrements every active bomb's countdown;
+    // any that reach 0 detonate — freezing up to 4 orthogonal NORMAL
+    // neighbors into ice, then clearing themselves. Returns an array of
+    // { idx, frozen: [idx,...] } for every bomb that went off this call, so
+    // the caller can apply a score penalty and play effects.
+    tickBombs(){
+      const n = this.size, grid = this.grid, colors = this.colors, blockIds = this.blockIds, bombTimers = this.bombTimers;
+      const detonations = [];
+      for(let idx = 0; idx < grid.length; idx++){
+        if(grid[idx] !== T_BOMB || bombTimers[idx] === 0) continue;
+        bombTimers[idx]--;
+        if(bombTimers[idx] === 0){
+          const r = (idx / n) | 0, c = idx % n;
+          const frozen = [];
+          const neighbors = [];
+          if(r > 0) neighbors.push(idx - n);
+          if(r < n - 1) neighbors.push(idx + n);
+          if(c > 0) neighbors.push(idx - 1);
+          if(c < n - 1) neighbors.push(idx + 1);
+          neighbors.forEach(nIdx=>{
+            if(grid[nIdx] === T_NORMAL){
+              grid[nIdx] = T_ICE;
+              blockIds[nIdx] = 0; // frozen solid — detached, immovable until it later cracks
+              frozen.push(nIdx);
+            }
+          });
+          grid[idx] = T_EMPTY; colors[idx] = 0; blockIds[idx] = 0; bombTimers[idx] = 0;
+          detonations.push({ idx, frozen });
+        }
+      }
+      return detonations;
+    }
+
+    // Object-based gravity: placed pieces fall as one rigid body, not as
+    // independent cells (matches Block Blast / 1010! — a piece never falls
+    // apart into "sand"). Every cell remembers which placed piece it came
+    // from via blockIds; a piece as a whole only drops one row at a time,
+    // and only when EVERY one of its cells has clear space (or another
+    // cell of the SAME piece) directly beneath it. If even one cell is
+    // blocked — by the floor, by a different piece, or by ice — the whole
+    // piece stays put. A piece containing an ice cell never falls at all,
+    // since ice itself never moves (a natural consequence of the same
+    // "one blocked cell stops the whole piece" rule).
+    //
+    // Runs as a do...while: each pass moves every currently-eligible piece
+    // down by exactly one row, then re-evaluates from scratch, until a full
+    // pass moves nothing. A tall stack therefore settles over several
+    // passes rather than one big jump — still correct, just resolved
+    // incrementally.
+    //
+    // Note on allocation: grouping cells by object identity fundamentally
+    // needs a per-pass lookup (which cells currently belong to which
+    // piece), so unlike the old pure-column version this is no longer
+    // zero-allocation — each pass builds a small Map from blockId to its
+    // cell list. For a 10x10 board this is a tiny, bounded cost (at most
+    // ~100 cells to group), not a per-cell allocation in a hot inner loop.
+    //
+    // Pass a `dropInfo` array to also collect which cells ended up moving
+    // and by how many total rows (across every pass), as a flat
+    // [r, c, shift, r, c, shift, ...] triple list — one entry per moved
+    // cell, using its FINAL resting position and TOTAL shift, so the
+    // caller can animate one smooth fall per piece instead of one hop per
+    // pass.
+    applyGravity(dropInfo){
+      const n = this.size, grid = this.grid, colors = this.colors, blockIds = this.blockIds, bombTimers = this.bombTimers;
+      const blockShift = dropInfo ? new Map() : null;
+
+      let anyMoved;
+      do {
+        anyMoved = false;
+
+        // Group currently-occupied cells by the piece they belong to.
+        const blocks = new Map(); // blockId -> [idx, idx, ...]
+        for(let idx = 0; idx < blockIds.length; idx++){
+          const id = blockIds[idx];
+          if(id === 0) continue;
+          let cells = blocks.get(id);
+          if(!cells){ cells = []; blocks.set(id, cells); }
+          cells.push(idx);
+        }
+
+        // Decide which whole pieces are free to drop one row this pass.
+        const moving = [];
+        blocks.forEach((cells, id)=>{
+          // A piece with any ice cell never falls — ice itself never moves,
+          // and one immovable cell is enough to stop the entire piece.
+          for(let i = 0; i < cells.length; i++){
+            if(grid[cells[i]] === T_ICE) return;
+          }
+          for(let i = 0; i < cells.length; i++){
+            const idx = cells[i];
+            const r = (idx / n) | 0, c = idx % n;
+            const nr = r + 1;
+            if(nr >= n) return; // this cell would hit the floor
+            const nIdx = nr * n + c;
+            if(blockIds[nIdx] === id) continue; // another cell of the SAME piece — fine
+            if(grid[nIdx] !== T_EMPTY) return; // blocked by something else
+          }
+          moving.push({ id, cells });
+        });
+
+        if(moving.length === 0) break;
+
+        // Apply all of this pass's moves together: clear every old cell
+        // first, THEN write every new cell, so pieces moving in the same
+        // pass never see each other's half-finished state.
+        const moves = [];
+        moving.forEach(({ id, cells })=>{
+          for(let i = 0; i < cells.length; i++){
+            const idx = cells[i];
+            const r = (idx / n) | 0, c = idx % n;
+            moves.push(idx, (r + 1) * n + c, grid[idx], colors[idx], id, bombTimers[idx]);
+          }
+          if(blockShift) blockShift.set(id, (blockShift.get(id) || 0) + 1);
+        });
+        for(let i = 0; i < moves.length; i += 6){
+          grid[moves[i]] = T_EMPTY; colors[moves[i]] = 0; blockIds[moves[i]] = 0; bombTimers[moves[i]] = 0;
+        }
+        for(let i = 0; i < moves.length; i += 6){
+          const newIdx = moves[i+1];
+          grid[newIdx] = moves[i+2]; colors[newIdx] = moves[i+3]; blockIds[newIdx] = moves[i+4]; bombTimers[newIdx] = moves[i+5];
+        }
+
+        anyMoved = true;
+      } while(anyMoved);
+
+      if(dropInfo && blockShift && blockShift.size){
+        for(let idx = 0; idx < blockIds.length; idx++){
+          const id = blockIds[idx];
+          if(id === 0) continue;
+          const shift = blockShift.get(id);
+          if(shift){
+            const r = (idx / n) | 0, c = idx % n;
+            dropInfo.push(r, c, shift);
+          }
+        }
+      }
+    }
+
+    findFullLines(){
+      const n = this.size, grid = this.grid;
+      const rows = [], cols = [];
+      for(let r = 0; r < n; r++){
+        const base = r * n;
+        let full = true;
+        for(let c = 0; c < n; c++){ if(grid[base + c] === T_EMPTY){ full = false; break; } }
+        if(full) rows.push(r);
+      }
+      for(let c = 0; c < n; c++){
+        let full = true;
+        for(let r = 0; r < n; r++){ if(grid[r * n + c] === T_EMPTY){ full = false; break; } }
+        if(full) cols.push(c);
+      }
+      return { rows, cols };
+    }
+
+    // Records any ice found in the 4 orthogonal neighbors of idx as a
+    // crack candidate. Cracking is NOT applied immediately — it's deferred
+    // (see clearLines/destroyCells) until the entire destroy+explode pass
+    // is finished. This keeps the whole pass order-independent: an ice
+    // cell that "should" crack because of this destruction stays fully
+    // frozen (and therefore immune) for every other check within the same
+    // pass, including a TNT explosion that also reaches it — it can only
+    // ever crack once, never crack-then-get-destroyed in one move.
+    _crackNeighbors(idx, crackSet){
+      const n = this.size, grid = this.grid;
+      const r = (idx / n) | 0, c = idx % n;
+      if(r > 0){ const i = idx - n; if(grid[i] === T_ICE) crackSet.add(i); }
+      if(r < n - 1){ const i = idx + n; if(grid[i] === T_ICE) crackSet.add(i); }
+      if(c > 0){ const i = idx - 1; if(grid[i] === T_ICE) crackSet.add(i); }
+      if(c < n - 1){ const i = idx + 1; if(grid[i] === T_ICE) crackSet.add(i); }
+    }
+
+    // Attempts to destroy every cell in `indices`. Ice resists direct
+    // destruction (skipped — it only cracks via _crackNeighbors below).
+    // TNT cells that get destroyed are queued into `explodeQueue` for the
+    // caller to process via _processExplosions.
+    //
+    // Two-phase on purpose: first decide which indices are valid targets
+    // from their type BEFORE any cracking happens in this call, THEN
+    // destroy + crack. Otherwise an ice cell that gets cracked by an
+    // earlier index in the same batch could wrongly become destroyable
+    // later in that same pass, just because of iteration order.
+    _destroyBatch(indices, destroyedMap, explodeQueue, crackSet){
+      const grid = this.grid, colors = this.colors;
+      const toDestroy = [];
+      for(let i = 0; i < indices.length; i++){
+        const idx = indices[i];
+        if(destroyedMap.has(idx)) continue;
+        const t = grid[idx];
+        if(t === T_EMPTY || t === T_ICE) continue;
+        toDestroy.push(idx);
+      }
+      for(let i = 0; i < toDestroy.length; i++){
+        const idx = toDestroy[i];
+        if(destroyedMap.has(idx)) continue;
+        const t = grid[idx];
+        destroyedMap.set(idx, { type: t, color: colors[idx] });
+        if(t === T_TNT) explodeQueue.push(idx);
+        this._crackNeighbors(idx, crackSet);
+      }
+    }
+
+    // Drains explodeQueue, destroying every cell in the 3x3 area around
+    // each queued TNT. Newly-destroyed TNT chain-explodes too. Ice in the
+    // blast radius still only cracks (via _crackNeighbors), never gets
+    // removed directly — consistent with line-clear behavior. Same
+    // two-phase approach as _destroyBatch, for the same reason.
+    _processExplosions(explodeQueue, destroyedMap, crackSet){
+      const n = this.size, grid = this.grid, colors = this.colors;
+      while(explodeQueue.length){
+        const idx = explodeQueue.pop();
+        const r = (idx / n) | 0, c = idx % n;
+        const toDestroy = [];
+        for(let dr = -1; dr <= 1; dr++){
+          for(let dc = -1; dc <= 1; dc++){
+            const nr = r + dr, nc = c + dc;
+            if(nr < 0 || nr >= n || nc < 0 || nc >= n) continue;
+            const nIdx = nr * n + nc;
+            if(destroyedMap.has(nIdx)) continue;
+            const t = grid[nIdx];
+            if(t === T_EMPTY || t === T_ICE) continue;
+            toDestroy.push(nIdx);
+          }
+        }
+        for(let i = 0; i < toDestroy.length; i++){
+          const nIdx = toDestroy[i];
+          if(destroyedMap.has(nIdx)) continue;
+          const t = grid[nIdx];
+          destroyedMap.set(nIdx, { type: t, color: colors[nIdx] });
+          if(t === T_TNT) explodeQueue.push(nIdx);
+          this._crackNeighbors(nIdx, crackSet);
+        }
+      }
+    }
+
+    // Clears the given full rows/cols: normal + TNT cells are removed, TNT
+    // chain-explodes (3x3), ice adjacent to any destroyed cell cracks (but
+    // is not removed this pass). Returns a Map<index, {type,color}> of
+    // every cell actually destroyed, captured before removal — the caller
+    // uses this for scoring/particles.
+    clearLines(rows, cols){
+      const n = this.size;
+      const destroyedMap = new Map();
+      const explodeQueue = [];
+      const crackSet = new Set();
+      const targets = [];
+      rows.forEach(r => { for(let c = 0; c < n; c++) targets.push(r * n + c); });
+      cols.forEach(c => { for(let r = 0; r < n; r++) targets.push(r * n + c); });
+
+      this._destroyBatch(targets, destroyedMap, explodeQueue, crackSet);
+      this._processExplosions(explodeQueue, destroyedMap, crackSet);
+
+      const grid = this.grid, colors = this.colors, blockIds = this.blockIds, bombTimers = this.bombTimers;
+      destroyedMap.forEach((_, idx) => { grid[idx] = T_EMPTY; colors[idx] = 0; blockIds[idx] = 0; bombTimers[idx] = 0; });
+      // Apply deferred cracks last, and only to cells that are still ice
+      // (never to something already destroyed — can't happen, but safe).
+      // Cracked ice becomes its OWN independent single-cell object (a fresh
+      // blockId), detached from whatever piece it used to belong to, so it
+      // is free to fall on its own from now on.
+      crackSet.forEach(idx => {
+        if(grid[idx] === T_ICE){ grid[idx] = T_NORMAL; blockIds[idx] = this._nextBlockId++; }
+      });
+      return destroyedMap;
+    }
+
+    // Destroys arbitrary cells through the exact same pipeline (used by the
+    // "rescue" feature) — ice still resists, TNT still chain-explodes.
+    destroyCells(indices){
+      const destroyedMap = new Map();
+      const explodeQueue = [];
+      const crackSet = new Set();
+      this._destroyBatch(indices, destroyedMap, explodeQueue, crackSet);
+      this._processExplosions(explodeQueue, destroyedMap, crackSet);
+      const grid = this.grid, colors = this.colors, blockIds = this.blockIds, bombTimers = this.bombTimers;
+      destroyedMap.forEach((_, idx) => { grid[idx] = T_EMPTY; colors[idx] = 0; blockIds[idx] = 0; bombTimers[idx] = 0; });
+      crackSet.forEach(idx => {
+        if(grid[idx] === T_ICE){ grid[idx] = T_NORMAL; blockIds[idx] = this._nextBlockId++; }
+      });
+      return destroyedMap;
+    }
+
+    // Directly melts the given ice cells, bypassing ice's normal immunity
+    // to direct destruction. destroyCells()/clearLines() deliberately
+    // protect ice (it should only ever crack via a destroyed NEIGHBOR) —
+    // this method is for abilities explicitly meant to remove ice outright
+    // (e.g. a "melt the ice" special power), where breaking that rule is
+    // the whole point. Non-ice indices are ignored.
+    meltIce(indices){
+      const destroyedMap = new Map();
+      const grid = this.grid, colors = this.colors, blockIds = this.blockIds;
+      for(let i = 0; i < indices.length; i++){
+        const idx = indices[i];
+        if(grid[idx] !== T_ICE) continue;
+        destroyedMap.set(idx, { type: T_ICE, color: colors[idx] });
+        grid[idx] = T_EMPTY;
+        colors[idx] = 0;
+        blockIds[idx] = 0;
+      }
+      return destroyedMap;
+    }
+
+    // One cascade iteration: gravity -> check full lines -> clear (which
+    // itself handles TNT detonation + ice cracking). Returns null once the
+    // board is stable (no full line found after gravity settles).
+    resolveStep(dropInfo){
+      this.applyGravity(dropInfo);
+      const { rows, cols } = this.findFullLines();
+      if(rows.length === 0 && cols.length === 0) return null;
+      const destroyed = this.clearLines(rows, cols);
+      return { rows, cols, destroyed };
+    }
+
+    // Convenience wrapper: runs the full combo while-loop synchronously —
+    // "Selective gravity -> check/clear lines -> TNT/ice ->
+    // gravity again", repeated until the board is stable. The live
+    // game drives resolveStep() itself (see runCascade below) so it can
+    // animate each wave, but this sync version is handy standalone (tests,
+    // headless simulation, or any integration that doesn't need per-step
+    // animation).
+    resolve(){
+      const steps = [];
+      let totalDestroyed = 0;
+      let step;
+      while((step = this.resolveStep()) !== null){
+        steps.push(step);
+        totalDestroyed += step.destroyed.size;
+      }
+      return { comboSteps: steps.length, totalDestroyed, steps };
+    }
+  }
+  GameBoard.EMPTY = T_EMPTY;
+  GameBoard.NORMAL = T_NORMAL;
+  GameBoard.ICE = T_ICE;
+  GameBoard.TNT = T_TNT;
+  GameBoard.BOMB = T_BOMB;
+
+  // -----------------------------------------------------------------------
+
+  const SHAPES = [
+    [[0,0]],
+    [[0,0],[0,1]],
+    [[0,0],[1,0]],
+    [[0,0],[0,1],[0,2]],
+    [[0,0],[1,0],[2,0]],
+    [[0,0],[0,1],[0,2],[0,3]],
+    [[0,0],[1,0],[2,0],[3,0]],
+    [[0,0],[0,1],[1,0],[1,1]],
+    [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]],
+    [[0,0],[1,0],[2,0],[2,1]],
+    [[0,0],[0,1],[0,2],[1,0]],
+    [[0,0],[0,1],[1,1],[2,1]],
+    [[1,0],[1,1],[1,2],[0,2]],
+    [[0,1],[1,1],[2,1],[2,0]],
+    [[0,0],[1,0],[1,1],[1,2]],
+    [[0,0],[0,1],[1,0],[2,0]],
+    [[0,0],[0,1],[0,2],[1,2]],
+    [[0,0],[0,1],[0,2],[1,1]],
+    [[0,1],[1,0],[1,1],[2,1]],
+    [[1,0],[1,1],[1,2],[0,1]],
+    [[0,0],[1,0],[1,1],[2,0]],
+    [[0,1],[0,2],[1,0],[1,1]],
+    [[0,0],[0,1],[1,1],[1,2]],
+    [[0,1],[1,0],[1,1],[1,2],[2,1]],
+  ];
+
+  const THEMES = {
+    classic: {
+      label: 'Classic',
+      price: 0,
+      colors: [
+        { top:'#ffb3b3', bot:'#e60000' }, // red
+        { top:'#ffd699', bot:'#ff8800' }, // orange
+        { top:'#fff59d', bot:'#ffd600' }, // yellow
+        { top:'#b9f6ca', bot:'#00c853' }, // green
+        { top:'#a3f7f7', bot:'#00acc1' }, // cyan
+        { top:'#a3c9ff', bot:'#0047ab' }, // blue
+        { top:'#e0b3ff', bot:'#7b00e0' }, // purple
+        { top:'#ffb3e6', bot:'#e6007a' }, // pink
+      ]
+    },
+    neon: {
+      label: 'Neon',
+      price: 50,
+      colors: [
+        { top:'#ccff66', bot:'#33cc00' }, // neon green
+        { top:'#99ffff', bot:'#00cccc' }, // neon cyan
+        { top:'#ff99ff', bot:'#cc00cc' }, // neon magenta
+        { top:'#ffff99', bot:'#cccc00' }, // neon yellow
+        { top:'#ff99c2', bot:'#ff0066' }, // neon pink
+        { top:'#cc99ff', bot:'#6600ff' }, // neon purple
+        { top:'#99ffcc', bot:'#00cc66' }, // neon mint
+        { top:'#ffcc99', bot:'#ff6600' }, // neon orange
+      ]
+    },
+    retro: {
+      label: 'Retro',
+      price: 50,
+      colors: [
+        { top:'#ffab91', bot:'#bf360c' }, // terracotta
+        { top:'#ffe082', bot:'#ef6c00' }, // mustard
+        { top:'#fff59d', bot:'#f9a825' }, // gold
+        { top:'#80cbc4', bot:'#00695c' }, // bottle green
+        { top:'#90caf9', bot:'#1565c0' }, // sky blue
+        { top:'#b2ebf2', bot:'#00838f' }, // sea blue
+        { top:'#9fa8da', bot:'#283593' }, // deep navy
+        { top:'#ef9a9a', bot:'#b71c1c' }, // muted red
+      ]
+    }
+  };
+
+  let ownedThemes = new Set(['classic']);
+  let activeTheme = 'classic';
+  function getColors(){ return THEMES[activeTheme].colors; }
+
+  // Updates the CSS custom properties driving the ambient background glow
+  // so it follows whichever color theme is currently active. Picks 3
+  // representative swatches from the palette (cyan/blue, purple, pink) —
+  // pure CSS var updates, no re-render of anything else needed.
+  function applyAmbientTheme(){
+    const colors = getColors();
+    const root = document.documentElement.style;
+    root.setProperty('--amb-1', colors[4].bot);
+    root.setProperty('--amb-2', colors[5].bot);
+    root.setProperty('--amb-3', colors[7].bot);
+  }
+
+
+  const engine = new GameBoard(SIZE);
+
+  let score = 0;
+  let best = 0;
+  let coins = 0;
+  let tray = [];
+  let uid = 1;
+  let locked = false;
+  let dragCtx = null;
+  let rescueUsed = false;
+
+  const boardEl = document.getElementById('board');
+  const viewportEl = document.getElementById('board-viewport');
+  const scoreVal = document.getElementById('score-val');
+  const bestVal = document.getElementById('best-val');
+  const coinsVal = document.getElementById('coins-val');
+  const overlay = document.getElementById('overlay');
+  const finalScore = document.getElementById('final-score');
+  const finalBest = document.getElementById('final-best');
+  const boardWrap = document.getElementById('board-wrap');
+  const slots = [0,1,2].map(i => document.querySelector(`.slot[data-slot="${i}"]`));
+  const zoomLabel = document.getElementById('zoom-label');
+  const shopOverlay = document.getElementById('shop-overlay');
+  const shopListEl = document.getElementById('shop-list');
+  const shopCoinsVal = document.getElementById('shop-coins');
+  const rescueBtn = document.getElementById('rescue-btn');
+  const manaFillEl = document.getElementById('mana-fill');
+  const manaBtn = document.getElementById('mana-btn');
+
+  // ---- Power-up economy: Hammer, Shuffle, and the Mana ability are each
+  // capped at a fixed number of uses per playthrough (resets on
+  // resetGame()) — a small, real scarcity so spending coins on them is a
+  // deliberate choice, not a bottomless well. ----
+  const MAX_POWERUP_USES = 3;
+  let manaUses = MAX_POWERUP_USES;
+
+  // ---- Mana system: clearing blocks of specific colors charges a bar;
+  // once full, the player can trigger a special ability. ----
+  let mana = 0;
+  const MANA_MAX = 100;
+  const MANA_PER_CELL = 8;
+  // Which palette color indices charge mana when a NORMAL block of that
+  // color is destroyed (indices into the active theme's color array).
+  const MANA_COLOR_INDICES = new Set([0, 3]);
+
+  function updateManaUI(){
+    const pct = Math.min(100, Math.round((mana / MANA_MAX) * 100));
+    manaFillEl.style.width = pct + '%';
+    const full = mana >= MANA_MAX;
+    const available = manaUses > 0;
+    // Note: deliberately NOT factoring `locked` into disabled here — locked
+    // is transient (true only mid-animation) and this function isn't
+    // guaranteed to re-run the instant it flips back to false, which used
+    // to leave the button stuck disabled after mana filled up mid-cascade.
+    // useManaAbility() already re-checks `locked` live at click time, so
+    // it's still safe.
+    manaBtn.disabled = !full || !available;
+    manaBtn.classList.toggle('full', full && available);
+    if(!available){
+      manaBtn.textContent = '✨ Mana Power — used up';
+    } else {
+      manaBtn.textContent = full
+        ? `✨ Cast mana power! (${manaUses}/${MAX_POWERUP_USES})`
+        : `✨ Mana Power (${pct}%) • ${manaUses}/${MAX_POWERUP_USES}`;
+    }
+  }
+
+  function collectManaFromDestroyed(destroyedMap){
+    let gained = 0;
+    destroyedMap.forEach(rec=>{
+      if(rec.type === T_NORMAL && MANA_COLOR_INDICES.has(rec.color)) gained += MANA_PER_CELL;
+    });
+    if(gained > 0){
+      mana = Math.min(MANA_MAX, mana + gained);
+      updateManaUI();
+    }
+  }
+
+  // Special ability: shatters up to 3 random ice blocks currently on the
+  // board. Routed through engine.destroyCells() — same pipeline as the
+  // hammer and rescue features — so it respects chain-reactions correctly
+  // (an ice block never chain-explodes, but this keeps the mechanism
+  // consistent and future special abilities can reuse it for TNT etc.).
+  function useManaAbility(){
+    if(mana < MANA_MAX || locked || manaUses <= 0) return;
+
+    const iceIdx = [];
+    for(let i=0;i<engine.grid.length;i++) if(engine.grid[i] === T_ICE) iceIdx.push(i);
+
+    mana = 0;
+    manaUses--;
+    updateManaUI();
+
+    if(iceIdx.length === 0) return; // nothing to shatter this time
+
+    for(let i=iceIdx.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [iceIdx[i], iceIdx[j]] = [iceIdx[j], iceIdx[i]];
+    }
+    const targets = iceIdx.slice(0, Math.min(3, iceIdx.length));
+
+    locked = true;
+    const destroyedMap = engine.meltIce(targets);
+    const particlesPerCell = destroyedMap.size > 12 ? 4 : 6;
+    destroyedMap.forEach((rec, idx)=>{
+      const r = (idx / SIZE) | 0, c = idx % SIZE;
+      spawnParticles(r, c, rec.type, rec.color, particlesPerCell);
+      cellEls[r][c].classList.add('clearing');
+    });
+
+    setTimeout(()=>{
+      destroyedMap.forEach((_, idx)=>{
+        const r = (idx / SIZE) | 0, c = idx % SIZE;
+        cellEls[r][c].classList.remove('clearing');
+      });
+      const dropInfo = [];
+      engine.applyGravity(dropInfo);
+      renderBoard();
+      animateDrops(dropInfo);
+      locked = false;
+      renderTray();
+      checkGameOver();
+    }, 380);
+  }
+
+  manaBtn.addEventListener('click', useManaAbility);
+
+  // ---- Boss fights: a persistent boss HP bar, damaged by clearing lines
+  // and detonating TNT within the same playthrough. Defeating a boss pays
+  // out coins and immediately starts the next (tougher) boss. Losing the
+  // game (Game Over) does NOT demote you — resetGame() just refills the
+  // SAME boss back to full HP for another attempt. ----
+  const bossNameEl = document.getElementById('boss-name');
+  const bossLevelEl = document.getElementById('boss-level');
+  const bossHpFillEl = document.getElementById('boss-hp-fill');
+  const BOSS_NAMES = ['Stone Golem', 'Ice Titan', 'Fire Devil', 'Shadow Reaper', 'Crystal Dragon'];
+
+  let bossLevel = 1;
+  let bossHp = 100;
+  let bossMaxHp = 100;
+
+  function bossNameFor(level){
+    const base = BOSS_NAMES[(level - 1) % BOSS_NAMES.length];
+    const tier = Math.floor((level - 1) / BOSS_NAMES.length) + 1;
+    return tier > 1 ? `${base} ${tier}` : base;
+  }
+
+  // Starts (or restarts) a boss fight at `level` with full HP. Call with
+  // just a level to (re)fill HP for that same boss.
+  function startBossFight(level){
+    bossLevel = level;
+    bossMaxHp = 100 + (level - 1) * 40;
+    bossHp = bossMaxHp;
+    updateBossUI();
+  }
+
+  function updateBossUI(){
+    bossNameEl.textContent = bossNameFor(bossLevel);
+    bossLevelEl.textContent = 'Lv.' + bossLevel;
+    const pct = bossMaxHp > 0 ? Math.max(0, Math.round((bossHp / bossMaxHp) * 100)) : 0;
+    bossHpFillEl.style.width = pct + '%';
+  }
+
+  function showBossDefeatedPopup(reward){
+    const pop = document.createElement('div');
+    pop.className = 'boss-defeat-pop';
+    pop.textContent = `👑 Boss defeated! +${reward} 🪙`;
+    boardWrap.appendChild(pop);
+    setTimeout(()=> pop.remove(), 1400);
+  }
+
+  const BOSS_COUNTERATTACK_CHANCE = 0.45;
+  const BOMB_TURNS = 3;
+
+  function playBossHitAnimation(amount){
+    const wrap = document.getElementById('boss-info-wrap');
+    wrap.classList.remove('boss-hit'); // restart if already mid-shake
+    void wrap.offsetWidth; // force reflow so the animation replays
+    wrap.classList.add('boss-hit');
+    setTimeout(()=> wrap.classList.remove('boss-hit'), 320);
+
+    bossHpFillEl.classList.remove('flash');
+    void bossHpFillEl.offsetWidth;
+    bossHpFillEl.classList.add('flash');
+    setTimeout(()=> bossHpFillEl.classList.remove('flash'), 320);
+
+    const dmg = document.createElement('div');
+    dmg.className = 'boss-dmg-pop';
+    dmg.textContent = `-${amount}`;
+    wrap.appendChild(dmg);
+    setTimeout(()=> dmg.remove(), 700);
+  }
+
+  function damageBoss(amount){
+    if(amount <= 0 || bossHp <= 0) return;
+    bossHp = Math.max(0, bossHp - amount);
+    updateBossUI();
+    playBossHitAnimation(amount);
+    if(bossHp === 0){
+      const reward = 50 + bossLevel * 10;
+      coins += reward;
+      updateScoreUI();
+      showBossDefeatedPopup(reward);
+      scheduleSave();
+      setTimeout(()=> startBossFight(bossLevel + 1), 900);
+    } else if(Math.random() < BOSS_COUNTERATTACK_CHANCE){
+      bossCounterattack();
+    }
+  }
+
+  // Boss counterattack: drops an unstable T_BOMB on a random empty board
+  // cell. It ticks down over the player's next few moves (see
+  // processBombTicks(), hooked into finishMove()) — if not cleared in time
+  // it detonates, freezing nearby blocks into ice and costing points.
+  function bossCounterattack(){
+    const emptyIdx = [];
+    for(let i=0;i<engine.grid.length;i++) if(engine.grid[i] === T_EMPTY) emptyIdx.push(i);
+    if(emptyIdx.length === 0) return;
+    const idx = emptyIdx[Math.floor(Math.random()*emptyIdx.length)];
+    if(engine.spawnBomb(idx, BOMB_TURNS)) renderBoard();
+  }
+
+  function showBombDamagePop(penalty, count){
+    const pop = document.createElement('div');
+    pop.className = 'combo-pop';
+    pop.style.color = '#ff5f6d';
+    pop.style.textShadow = '0 0 18px rgba(255,95,109,0.9), 0 0 4px rgba(255,255,255,0.6)';
+    pop.textContent = count > 1 ? `💥×${count} Bombs! −${penalty}` : `💥 Bomb! −${penalty}`;
+    boardWrap.appendChild(pop);
+    setTimeout(()=> pop.remove(), 1000);
+  }
+
+  // Runs once per player move (see finishMove()): ticks every active bomb's
+  // countdown and resolves any that just detonated.
+  function processBombTicks(){
+    const detonations = engine.tickBombs();
+
+    let totalPenalty = 0;
+    detonations.forEach(({ idx, frozen })=>{
+      const r = (idx / SIZE) | 0, c = idx % SIZE;
+      spawnParticles(r, c, T_TNT, 0, 6); // fiery burst at the blast site
+      playExplosionSound();
+      totalPenalty += 15;
+      if(frozen.length > 0) playFreezeSound();
+      frozen.forEach(fIdx=>{
+        const fr = (fIdx / SIZE) | 0, fc = fIdx % SIZE;
+        spawnParticles(fr, fc, T_ICE, 0, 4); // icy burst on newly-frozen neighbors
+      });
+    });
+
+    if(totalPenalty > 0){
+      score = Math.max(0, score - totalPenalty);
+      updateScoreUI();
+      showBombDamagePop(totalPenalty, detonations.length);
+    }
+
+    // Re-render whenever any bomb is on the board, even if none detonated
+    // this move — otherwise the countdown number never visibly ticks down.
+    let hasBomb = false;
+    for(let i=0;i<engine.grid.length;i++){ if(engine.grid[i]===T_BOMB){ hasBomb = true; break; } }
+    if(hasBomb || detonations.length > 0) renderBoard();
+  }
+
+  // ---- Quests: simple counters within the current playthrough. Two are
+  // active at a time; completing one pays out a reward and is replaced by
+  // a fresh quest so there's always something to work toward. Quests reset
+  // every new game (resetGame) — they are NOT persisted across restarts. ----
+  const questsOverlay = document.getElementById('quests-overlay');
+  const questsListEl = document.getElementById('quests-list');
+
+  const QUEST_TEMPLATES = [
+    { type:'lines_cleared', label: n => `Clear ${n} lines`, target: 15, reward: 40, rewardLabel: '40 🪙', apply: ()=>{ coins += 40; } },
+    { type:'tnt_triggered', label: n => `Detonate TNT ${n} times`, target: 5, reward: 30, rewardLabel: '30 🪙', apply: ()=>{ coins += 30; } },
+    { type:'combo3', label: n => `Get a ${n}× combo (3+ lines at once)`, target: 3, reward: 40, rewardLabel: '40 ✨ mana', apply: ()=>{ mana = Math.min(MANA_MAX, mana + 40); } },
+  ];
+
+  let quests = [];
+
+  function makeQuest(excludeTypes){
+    const pool = QUEST_TEMPLATES.filter(t => !excludeTypes.includes(t.type));
+    const tpl = pool.length ? pool[Math.floor(Math.random()*pool.length)] : QUEST_TEMPLATES[Math.floor(Math.random()*QUEST_TEMPLATES.length)];
+    return {
+      type: tpl.type,
+      label: tpl.label(tpl.target),
+      target: tpl.target,
+      progress: 0,
+      rewardLabel: tpl.rewardLabel,
+      apply: tpl.apply,
+      completed: false
+    };
+  }
+
+  function newQuests(){
+    quests = [];
+    const used = [];
+    for(let i=0;i<2;i++){
+      const q = makeQuest(used);
+      used.push(q.type);
+      quests.push(q);
+    }
+    renderQuests();
+  }
+
+  function renderQuests(){
+    questsListEl.innerHTML = '';
+    quests.forEach(q=>{
+      const item = document.createElement('div');
+      item.className = 'quest-item' + (q.completed ? ' completed' : '');
+
+      const top = document.createElement('div');
+      top.className = 'quest-item-top';
+      const label = document.createElement('div');
+      label.className = 'quest-item-label';
+      label.textContent = (q.completed ? '✅ ' : '') + q.label;
+      const reward = document.createElement('div');
+      reward.className = 'quest-item-reward';
+      reward.textContent = q.rewardLabel;
+      top.appendChild(label); top.appendChild(reward);
+
+      const bar = document.createElement('div');
+      bar.className = 'quest-progress-bar';
+      const fill = document.createElement('div');
+      fill.className = 'quest-progress-fill';
+      fill.style.width = Math.min(100, Math.round((q.progress/q.target)*100)) + '%';
+      bar.appendChild(fill);
+
+      const text = document.createElement('div');
+      text.className = 'quest-progress-text';
+      text.textContent = `${Math.min(q.progress, q.target)} / ${q.target}`;
+
+      item.appendChild(top); item.appendChild(bar); item.appendChild(text);
+      questsListEl.appendChild(item);
+    });
+  }
+
+  function progressQuest(type, amount){
+    if(amount <= 0) return;
+    let changed = false;
+    quests.forEach(q=>{
+      if(q.completed || q.type !== type) return;
+      q.progress = Math.min(q.target, q.progress + amount);
+      changed = true;
+      if(q.progress >= q.target){
+        q.completed = true;
+        q.apply();
+        updateScoreUI();
+        updateManaUI();
+        scheduleSave();
+        setTimeout(()=>{
+          const idx = quests.indexOf(q);
+          if(idx === -1) return;
+          const otherTypes = quests.filter(x => x !== q).map(x => x.type);
+          quests[idx] = makeQuest(otherTypes);
+          renderQuests();
+        }, 900);
+      }
+    });
+    if(changed) renderQuests();
+  }
+
+  document.getElementById('quests-btn').addEventListener('click', ()=>{
+    renderQuests();
+    questsOverlay.classList.add('show');
+  });
+  document.getElementById('quests-close').addEventListener('click', ()=>{
+    questsOverlay.classList.remove('show');
+  });
+  questsOverlay.addEventListener('click', (e)=>{
+    if(e.target === questsOverlay) questsOverlay.classList.remove('show');
+  });
+
+
+  const cellEls = [];
+  for(let r=0;r<SIZE;r++){
+    const row = [];
+    for(let c=0;c<SIZE;c++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r; // DODANO
+      cell.dataset.c = c; // DODANO
+      boardEl.appendChild(cell);
+      row.push(cell);
+    }
+    cellEls.push(row);
+  }
+
+  function getCellSize(){
+    return boardEl.offsetWidth ? (boardEl.offsetWidth - BOARD_PAD*2 - (SIZE-1)*BOARD_GAP) / SIZE : 32;
+  }
+
+  function normalize(shape){
+    const minR = Math.min(...shape.map(p=>p[0]));
+    const minC = Math.min(...shape.map(p=>p[1]));
+    return shape.map(([r,c])=>[r-minR, c-minC]);
+  }
+
+  function rotateShape(shape){
+    const R = shapeBounds(shape).maxR;
+    const rotated = shape.map(([r,c]) => [c, R-1-r]);
+    return normalize(rotated);
+  }
+
+  // Weighted the same order as SHAPES above: lower weight = rarer.
+  // Drastically re-tuned for a much harder game: small/easy pieces are now
+  // very rare, the 3x3 square (extremely hard to fit) is common, and
+  // complex 4-5 cell shapes dominate the pool.
+  const SHAPE_WEIGHTS = [
+    1,             // [[0,0]] single cell — very rare now
+    1, 1,          // 1x2 / 2x1 dominoes — very rare now
+    2, 2, 2, 2,    // 1x3 / 3x1 / 1x4 / 4x1 lines
+    2,             // 2x2 square
+    5,             // 3x3 square — huge, now COMMON (drastically harder to fit)
+    6, 6, 6, 6,    // L variants
+    6, 6, 6, 6,    // J variants
+    6, 6, 6, 6,    // T variants
+    6, 6,          // S, Z
+    6,             // plus
+  ];
+
+  function weightedShapeIndex(){
+    let total = 0;
+    for(let i=0;i<SHAPE_WEIGHTS.length;i++) total += SHAPE_WEIGHTS[i];
+    let r = Math.random()*total;
+    for(let i=0;i<SHAPE_WEIGHTS.length;i++){
+      r -= SHAPE_WEIGHTS[i];
+      if(r < 0) return i;
+    }
+    return SHAPE_WEIGHTS.length - 1;
+  }
+
+  function randomShape(){ return normalize(SHAPES[weightedShapeIndex()]); }
+  function randomColorIdx(){ return Math.floor(Math.random()*getColors().length); }
+
+  // Drastically increased: ~22% ice, ~18% TNT (was 12%/8%) — over a third
+  // of pieces now carry an obstacle cell, making the board fill up with
+  // ice (which needs 2 hits and blocks gravity) much faster.
+  function randomPieceTypes(len){
+    const types = new Array(len).fill(T_NORMAL);
+    const roll = Math.random();
+    if(roll < 0.22){
+      types[Math.floor(Math.random()*len)] = T_ICE;
+    } else if(roll < 0.40){
+      types[Math.floor(Math.random()*len)] = T_TNT;
+    }
+    return types;
+  }
+
+  function shapeBounds(shape){
+    const maxR = Math.max(...shape.map(p=>p[0]))+1;
+    const maxC = Math.max(...shape.map(p=>p[1]))+1;
+    return {maxR, maxC};
+  }
+
+  // Visual info for a single block type — normal blocks use the active
+  // theme's palette; ice/TNT always use their own fixed look + icon.
+  function cellVisual(type, colorIdx){
+    if(type === T_ICE) return { bg:'linear-gradient(155deg,#eafcff,#9fdcea)', icon:'❄', cls:'cell-ice' };
+    if(type === T_TNT) return { bg:'linear-gradient(155deg,#3a1620,#160608)', icon:'💣', cls:'cell-tnt' };
+    if(type === T_BOMB) return { bg:'linear-gradient(155deg,#ff5f3f,#8a1a1a)', icon:'', cls:'cell-bomb' };
+    const col = getColors()[colorIdx] || getColors()[0];
+    return { bg:`linear-gradient(155deg, ${col.top}, ${col.bot})`, icon:'', cls:'' };
+  }
+
+  function renderBoard(){
+    const cellPx = getCellSize();
+    const iconSize = Math.max(10, cellPx*0.52) + 'px';
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        const idx = engine.idx(r,c);
+        const type = engine.grid[idx];
+        const el = cellEls[r][c];
+        el.classList.remove('hl-valid','hl-invalid','cell-ice','cell-tnt','cell-bomb');
+        if(type !== T_EMPTY){
+          el.classList.add('filled');
+          const vis = cellVisual(type, engine.colors[idx]);
+          el.style.background = vis.bg;
+          el.textContent = type === T_BOMB ? String(engine.bombTimers[idx]) : vis.icon;
+          el.style.fontSize = iconSize;
+          if(vis.cls) el.classList.add(vis.cls);
+        } else {
+          el.classList.remove('filled');
+          el.style.background = '';
+          el.textContent = '';
+        }
+      }
+    }
+  }
+
+  function buildPieceEl(piece, cellPx){
+    const {maxR, maxC} = shapeBounds(piece.shape);
+    const wrap = document.createElement('div');
+    wrap.className = 'piece';
+    wrap.style.display = 'grid';
+    wrap.style.gridTemplateRows = `repeat(${maxR}, ${cellPx}px)`;
+    wrap.style.gridTemplateColumns = `repeat(${maxC}, ${cellPx}px)`;
+    wrap.style.gap = Math.max(2, cellPx*0.12) + 'px';
+    for(let r=0;r<maxR;r++){
+      for(let c=0;c<maxC;c++){
+        const shapeIdx = piece.shape.findIndex(([sr,sc])=> sr===r && sc===c);
+        const d = document.createElement('div');
+        if(shapeIdx >= 0){
+          const type = piece.types[shapeIdx];
+          const vis = cellVisual(type, piece.color);
+          d.className = 'block';
+          d.style.background = vis.bg;
+          if(vis.icon){ d.textContent = vis.icon; d.style.fontSize = Math.max(10, cellPx*0.52)+'px'; }
+        } else {
+          d.style.visibility = 'hidden';
+        }
+        wrap.appendChild(d);
+      }
+    }
+    return wrap;
+  }
+
+  function renderTray(){
+    const cellPx = Math.max(18, getCellSize()*0.62);
+    slots.forEach((slotEl, i)=>{
+      slotEl.innerHTML = '';
+      const piece = tray[i];
+      if(!piece || piece.used) return;
+      const el = buildPieceEl(piece, cellPx);
+      el.dataset.pieceId = piece.id;
+      attachDrag(el, piece);
+
+      const blocked = !canPlaceAnywhere(piece.shape);
+      el.classList.toggle('piece-blocked', blocked);
+      if(blocked){
+        el.title = "This piece doesn't fit anywhere on the board right now";
+      }
+
+      slotEl.appendChild(el);
+
+      const rotBtn = document.createElement('div');
+      rotBtn.className = 'rotate-btn';
+      rotBtn.textContent = '↻';
+      rotBtn.addEventListener('pointerdown', (e)=> e.stopPropagation());
+      rotBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        if(locked) return;
+        playRotateClick();
+        const oldShape = piece.shape;
+        const newShape = rotateShape(oldShape);
+        // normalize()/rotateShape() transform each [r,c] pair in place without
+        // reordering the array, so piece.types[i] still matches piece.shape[i].
+        piece.shape = newShape;
+        renderTray();
+      });
+      slotEl.appendChild(rotBtn);
+    });
+  }
+
+  function updateScoreUI(){
+    scoreVal.textContent = score;
+    bestVal.textContent = best;
+    coinsVal.textContent = `🪙 ${coins}`;
+    if(shopCoinsVal) shopCoinsVal.textContent = coins;
+  }
+
+  function newTray(){
+    tray = [0,1,2].map(()=>{
+      const shape = randomShape();
+      return {
+        id: uid++,
+        shape,
+        types: randomPieceTypes(shape.length),
+        color: randomColorIdx(),
+        used:false
+      };
+    });
+    renderTray();
+  }
+
+  function canPlaceAnywhere(shape){
+    return engine.canPlaceAnywhere(shape);
+  }
+
+  function placePiece(piece, r0, c0){
+    const cellsSpec = piece.shape.map((off, i) => [off[0], off[1], piece.types[i]]);
+    engine.place(cellsSpec, r0, c0, piece.color);
+    score += piece.shape.length;
+    updateScoreUI();
+    renderBoard();
+    locked = true;
+    runCascade();
+  }
+
+  // Drives the engine's cascade loop one visible wave at a time:
+  // gravity+drop animation -> (if a line completed) flash + particles +
+  // TNT/ice resolution -> repeat. Stops once a gravity pass finds no full
+  // line, matching the "combo loop" spec while keeping every step visible.
+  function runCascade(){
+    const dropInfo = [];
+    engine.applyGravity(dropInfo);
+    renderBoard();
+    animateDrops(dropInfo);
+
+    const { rows, cols } = engine.findFullLines();
+    if(rows.length === 0 && cols.length === 0){
+      locked = false;
+      finishMove();
+      return;
+    }
+
+    const destroyedMap = engine.clearLines(rows, cols);
+    collectManaFromDestroyed(destroyedMap);
+    const linesInStep = rows.length + cols.length;
+    let tntCount = 0;
+    let bombsDefused = 0;
+    const records = [];
+    destroyedMap.forEach((rec, idx)=>{
+      const r = (idx / SIZE) | 0, c = idx % SIZE;
+      records.push({ r, c, type: rec.type, color: rec.color });
+      if(rec.type === T_TNT) tntCount++;
+      if(rec.type === T_BOMB) bombsDefused++;
+    });
+
+    damageBoss(10*linesInStep + tntCount*25);
+    if(tntCount > 0) playExplosionSound();
+    progressQuest('lines_cleared', linesInStep);
+    if(tntCount > 0) progressQuest('tnt_triggered', tntCount);
+    if(linesInStep >= 3) progressQuest('combo3', 1);
+
+    const particlesPerCell = records.length > 24 ? 3 : (records.length > 12 ? 4 : 6);
+    records.forEach(({r,c,type,color})=>{
+      spawnParticles(r, c, type, color, particlesPerCell);
+      cellEls[r][c].classList.add('clearing');
+    });
+
+    const points = 10*linesInStep + (linesInStep>=2 ? 20*(linesInStep-1) : 0) + tntCount*20;
+    score += points;
+    coins += linesInStep + bombsDefused*5; // bonus for defusing a bomb before it went off
+    updateScoreUI();
+    scheduleSave();
+    showComboPop(linesInStep, points, tntCount);
+
+    setTimeout(()=>{
+      records.forEach(({r,c})=> cellEls[r][c].classList.remove('clearing'));
+      renderBoard();
+      setTimeout(runCascade, 90);
+    }, 380);
+  }
+
+  function animateDrops(dropInfo){
+    if(!dropInfo.length) return;
+    const step = getCellSize() + BOARD_GAP;
+    for(let i=0;i<dropInfo.length;i+=3){
+      const r = dropInfo[i], c = dropInfo[i+1], shift = dropInfo[i+2];
+      const el = cellEls[r][c];
+      el.style.setProperty('--drop-distance', (-shift*step) + 'px');
+      el.classList.add('dropping');
+      el.addEventListener('animationend', function handler(){
+        el.classList.remove('dropping');
+        el.removeEventListener('animationend', handler);
+      });
+    }
+  }
+
+  function spawnParticles(r, c, type, colorIdx, count){
+    const cellEl = cellEls[r][c];
+    const rect = cellEl.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    let top, bot;
+    if(type === T_ICE){ top = '#eafcff'; bot = '#9fdcea'; }
+    else if(type === T_TNT){ top = '#ffcf5c'; bot = '#ff4d4d'; }
+    else if(type === T_BOMB){ top = '#ff8a4c'; bot = '#8a1a1a'; }
+    else { const col = getColors()[colorIdx] || getColors()[0]; top = col.top; bot = col.bot; }
+    const n = count || 6;
+
+    for(let i=0;i<n;i++){
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const angle = Math.random()*Math.PI*2;
+      const dist = 26 + Math.random()*44;
+      const tx = Math.cos(angle)*dist;
+      const ty = Math.sin(angle)*dist;
+      const size = 4 + Math.random()*5;
+      p.style.left = cx + 'px';
+      p.style.top = cy + 'px';
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      p.style.background = (i % 2 === 0) ? top : bot;
+      p.style.setProperty('--tx', tx + 'px');
+      p.style.setProperty('--ty', ty + 'px');
+      p.style.setProperty('--rot', (Math.random()*360) + 'deg');
+      document.body.appendChild(p);
+      p.addEventListener('animationend', ()=> p.remove());
+      setTimeout(()=> p.remove(), 700);
+    }
+  }
+
+  function showComboPop(linesCleared, points, tntCount){
+    const pop = document.createElement('div');
+    pop.className = 'combo-pop';
+    let txt = linesCleared >= 2 ? `COMBO x${linesCleared}  +${points}` : `+${points}`;
+    if(tntCount > 0) txt += ` 💥×${tntCount}`;
+    pop.textContent = txt;
+    boardWrap.appendChild(pop);
+    setTimeout(()=> pop.remove(), 1000);
+  }
+
+  function finishMove(){
+    processBombTicks();
+    if(tray.every(p=>p.used)){ newTray(); } else { renderTray(); }
+    checkGameOver();
+  }
+
+  function checkGameOver(){
+    const remaining = tray.filter(p=>!p.used);
+    const anyFits = remaining.some(p => canPlaceAnywhere(p.shape));
+    if(!anyFits){
+      if(score > best){ best = score; saveProgress(); }
+      finalScore.textContent = score;
+      finalBest.textContent = best;
+      updateScoreUI();
+
+      const filledCount = engine.countFilled();
+      rescueBtn.style.display = (rescueUsed || filledCount === 0) ? 'none' : '';
+
+      overlay.classList.add('show');
+    }
+  }
+
+  // ---- rescue: clear 3 random blocks to free up space and keep playing.
+  // Routed through engine.destroyCells() so ice still resists and TNT
+  // still chain-explodes even when removed this way.
+  // TODO: hook this up to a rewarded video ad — call rescuePlayer() only
+  // after the ad has been watched successfully (e.g. showRewardedAd().then(rescuePlayer)).
+  function rescuePlayer(){
+    if(rescueUsed || locked) return;
+    rescueUsed = true;
+    rescueBtn.disabled = true;
+
+    const filledIdx = [];
+    for(let i=0;i<engine.grid.length;i++) if(engine.grid[i] !== T_EMPTY) filledIdx.push(i);
+    if(filledIdx.length === 0){ rescueBtn.disabled = false; rescueUsed = false; return; }
+
+    for(let i=filledIdx.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [filledIdx[i], filledIdx[j]] = [filledIdx[j], filledIdx[i]];
+    }
+    const targets = filledIdx.slice(0, Math.min(3, filledIdx.length));
+
+    overlay.classList.remove('show');
+    locked = true;
+
+    const destroyedMap = engine.destroyCells(targets);
+    const particlesPerCell = destroyedMap.size > 12 ? 4 : 6;
+    destroyedMap.forEach((rec, idx)=>{
+      const r = (idx / SIZE) | 0, c = idx % SIZE;
+      spawnParticles(r, c, rec.type, rec.color, particlesPerCell);
+      cellEls[r][c].classList.add('clearing');
+      if(rec.type === T_TNT) playExplosionSound();
+    });
+
+    setTimeout(()=>{
+      destroyedMap.forEach((_, idx)=>{
+        const r = (idx / SIZE) | 0, c = idx % SIZE;
+        cellEls[r][c].classList.remove('clearing');
+      });
+      const dropInfo = [];
+      engine.applyGravity(dropInfo);
+      renderBoard();
+      animateDrops(dropInfo);
+      locked = false;
+      renderTray();
+      checkGameOver();
+    }, 380);
+  }
+
+  rescueBtn.addEventListener('click', rescuePlayer);
+
+  // ---- shop: unlock new block color themes with coins ----
+  function renderShop(){
+    if(shopCoinsVal) shopCoinsVal.textContent = coins;
+    shopListEl.innerHTML = '';
+    Object.keys(THEMES).forEach(key=>{
+      const theme = THEMES[key];
+      const owned = ownedThemes.has(key);
+      const active = activeTheme === key;
+
+      const item = document.createElement('div');
+      item.className = 'shop-item';
+
+      const swatch = document.createElement('div');
+      swatch.className = 'shop-swatch';
+      theme.colors.slice(0,5).forEach(c=>{
+        const s = document.createElement('span');
+        s.style.background = `linear-gradient(135deg, ${c.top}, ${c.bot})`;
+        swatch.appendChild(s);
+      });
+
+      const info = document.createElement('div');
+      info.className = 'shop-item-info';
+      const name = document.createElement('div');
+      name.className = 'shop-item-name';
+      name.textContent = theme.label;
+      const status = document.createElement('div');
+      status.className = 'shop-item-status';
+      status.textContent = active ? 'Active theme' : (owned ? 'Unlocked' : `${theme.price} 🪙`);
+      info.appendChild(name);
+      info.appendChild(status);
+
+      const btn = document.createElement('button');
+      btn.className = 'shop-item-btn';
+      if(active){
+        btn.textContent = 'Active';
+        btn.classList.add('active');
+        btn.disabled = true;
+      } else if(owned){
+        btn.textContent = 'Select';
+        btn.classList.add('select');
+        btn.addEventListener('click', ()=> selectTheme(key));
+      } else {
+        btn.textContent = `Buy for ${theme.price}`;
+        btn.classList.add('buy');
+        btn.disabled = coins < theme.price;
+        btn.addEventListener('click', ()=> buyTheme(key));
+      }
+
+      item.appendChild(swatch);
+      item.appendChild(info);
+      item.appendChild(btn);
+      shopListEl.appendChild(item);
+    });
+  }
+
+  function buyTheme(key){
+    const theme = THEMES[key];
+    if(!theme || ownedThemes.has(key) || coins < theme.price) return;
+    coins -= theme.price;
+    ownedThemes.add(key);
+    activeTheme = key;
+    applyAmbientTheme();
+    updateScoreUI();
+    renderBoard();
+    renderTray();
+    renderShop();
+    saveProgress();
+  }
+
+  function selectTheme(key){
+    if(!ownedThemes.has(key) || activeTheme === key) return;
+    activeTheme = key;
+    applyAmbientTheme();
+    renderBoard();
+    renderTray();
+    renderShop();
+    saveProgress();
+  }
+
+  document.getElementById('shop-btn').addEventListener('click', ()=>{
+    renderShop();
+    shopOverlay.classList.add('show');
+  });
+  document.getElementById('shop-close').addEventListener('click', ()=>{
+    shopOverlay.classList.remove('show');
+  });
+  shopOverlay.addEventListener('click', (e)=>{
+    if(e.target === shopOverlay) shopOverlay.classList.remove('show');
+  });
+
+  // ---- persistent progress: high score, coins, unlocked themes ----
+  // This build runs inside Claude Artifacts, which blocks localStorage /
+  // sessionStorage entirely — window.storage is the only mechanism that
+  // actually persists data here (per-user, private to this artifact).
+  const PROGRESS_KEY = 'blast-runda-progress';
+  let saveDebounceTimer = null;
+
+  function scheduleSave(){
+    clearTimeout(saveDebounceTimer);
+    saveDebounceTimer = setTimeout(()=> saveProgress(), 500);
+  }
+
+  async function saveProgress(retryCount){
+    retryCount = retryCount || 0;
+    try{
+      const data = JSON.stringify({
+        best,
+        coins,
+        ownedThemes: Array.from(ownedThemes),
+        activeTheme,
+        bossLevel
+      });
+      await window.storage.set(PROGRESS_KEY, data, false);
+    }catch(err){
+      if(retryCount < 2){
+        // Transient backend hiccups happen occasionally — back off a bit
+        // more each time before giving up. Gameplay is never blocked by
+        // this either way.
+        setTimeout(()=> saveProgress(retryCount + 1), 2000 * (retryCount + 1));
+      } else {
+        console.error('Failed to save progress (score/coins) — the game continues normally:', err);
+      }
+    }
+  }
+
+  async function loadProgress(){
+    try{
+      const res = await window.storage.get(PROGRESS_KEY, false);
+      if(res && res.value){
+        const data = JSON.parse(res.value);
+        if(typeof data.best === 'number' && data.best > best) best = data.best;
+        if(typeof data.coins === 'number') coins = data.coins;
+        if(Array.isArray(data.ownedThemes) && data.ownedThemes.length){
+          ownedThemes = new Set(data.ownedThemes);
+        }
+        if(data.activeTheme && THEMES[data.activeTheme]) activeTheme = data.activeTheme;
+        applyAmbientTheme();
+        if(typeof data.bossLevel === 'number' && data.bossLevel > 0) startBossFight(data.bossLevel);
+        updateScoreUI();
+        renderBoard();
+        renderTray();
+      }
+    }catch(err){
+      // no saved progress yet (first run) — do nothing
+    }
+  }
+
+  function attachDrag(pieceEl, piece){
+    pieceEl.addEventListener('pointerdown', (e)=>{
+      if(locked || piece.used) return;
+      e.preventDefault();
+      startDrag(piece, pieceEl, e);
+    });
+  }
+
+  function startDrag(piece, sourceEl, e){
+    const boardRect0 = boardEl.getBoundingClientRect();
+    const scale = boardRect0.width / boardEl.offsetWidth;
+    const baseCellPx = getCellSize();
+    const screenCellPx = baseCellPx * scale;
+
+    const ghost = buildPieceEl(piece, screenCellPx);
+    ghost.classList.add('ghost');
+    document.body.appendChild(ghost);
+    sourceEl.classList.add('dragging-source');
+
+    const isTouch = e.pointerType === 'touch';
+    const liftY = isTouch ? 92 : 34;
+
+    dragCtx = { piece, sourceEl, ghost, scale, baseCellPx, lastValid:null };
+
+    function move(clientX, clientY) {
+      const gw = ghost.offsetWidth, gh = ghost.offsetHeight;
+      const left = clientX - gw / 2;
+      const top = clientY - gh / 2 - liftY;
+      ghost.style.left = left + 'px';
+      ghost.style.top = top + 'px';
+      // Pass the pointer/finger center point so the grid targets exactly under the touch
+      computeHighlight(clientX, clientY - liftY);
+    }
+    function computeHighlight(targetX, targetY) {
+      clearHighlight();
+      const br = boardEl.getBoundingClientRect();
+      const s = dragCtx.scale;
+      const gap = BOARD_GAP * s, pad = BOARD_PAD * s, cellPx = dragCtx.baseCellPx * s;
+      
+      // Calculate the position relative to the piece's grip center on the grid
+      const { maxR, maxC } = shapeBounds(piece.shape);
+      const ghostW = maxC * cellPx + (maxC - 1) * gap;
+      const ghostH = maxR * cellPx + (maxR - 1) * gap;
+      
+      const relX = (targetX - ghostW / 2) - (br.left + pad);
+      const relY = (targetY - ghostH / 2) - (br.top + pad);
+      
+      const col0 = Math.round(relX / (cellPx + gap));
+      const row0 = Math.round(relY / (cellPx + gap));
+      
+      const inRange = row0 >= 0 && col0 >= 0 && row0 + maxR <= SIZE && col0 + maxC <= SIZE;
+      let valid = false;
+      const cells = [];
+      if (inRange) {
+        valid = true;
+        for (const [dr, dc] of piece.shape) {
+          const r = row0 + dr, c = col0 + dc;
+          cells.push([r, c]);
+          if (engine.grid[engine.idx(r, c)] !== T_EMPTY) valid = false;
+        }
+      }
+      dragCtx.lastValid = valid ? { row0, col0 } : null;
+      if (inRange) {
+        cells.forEach(([r, c]) => { cellEls[r][c].classList.add(valid ? 'hl-valid' : 'hl-invalid'); });
+      }
+    }
+
+    function clearHighlight(){
+      for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) cellEls[r][c].classList.remove('hl-valid','hl-invalid');
+    }
+
+    function onMove(ev){ move(ev.clientX, ev.clientY); }
+
+    function onUp(ev){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      clearHighlight();
+      ghost.remove();
+      sourceEl.classList.remove('dragging-source');
+
+      if(dragCtx && dragCtx.lastValid){
+        piece.used = true;
+        renderTray();
+        placePiece(piece, dragCtx.lastValid.row0, dragCtx.lastValid.col0);
+      } else {
+        sourceEl.style.opacity = '';
+      }
+      dragCtx = null;
+    }
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+
+    move(e.clientX, e.clientY);
+  }
+
+  const ZOOM_MIN = 1, ZOOM_MAX = 2.4, ZOOM_STEP = 0.25;
+  let zoom = 1, panX = 0, panY = 0;
+  const pointers = new Map();
+  let pinchStartDist = 0, pinchStartZoom = 1, pinchMid = {x:0,y:0};
+  let isPanning = false, panStart = {x:0,y:0}, panOrigin = {x:0,y:0};
+
+  function clampPan(){
+    const w = viewportEl.clientWidth, h = viewportEl.clientHeight;
+    const sw = w*zoom, sh = h*zoom;
+    const minX = Math.min(0, w - sw), minY = Math.min(0, h - sh);
+    panX = Math.max(minX, Math.min(0, panX));
+    panY = Math.max(minY, Math.min(0, panY));
+  }
+
+  function applyTransform(){
+    clampPan();
+    boardEl.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    zoomLabel.textContent = Math.round(zoom*100) + '%';
+  }
+
+  function setZoom(newZoom, anchorClientX, anchorClientY){
+    newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
+    const vr = viewportEl.getBoundingClientRect();
+    const ax = (anchorClientX!==undefined) ? anchorClientX - vr.left : vr.width/2;
+    const ay = (anchorClientY!==undefined) ? anchorClientY - vr.top : vr.height/2;
+    const relX = (ax - panX) / zoom;
+    const relY = (ay - panY) / zoom;
+    zoom = newZoom;
+    panX = ax - relX*zoom;
+    panY = ay - relY*zoom;
+    applyTransform();
+  }
+
+  document.getElementById('zoom-in').addEventListener('click', ()=> setZoom(zoom+ZOOM_STEP));
+  document.getElementById('zoom-out').addEventListener('click', ()=> setZoom(zoom-ZOOM_STEP));
+  document.getElementById('zoom-reset').addEventListener('click', ()=>{ zoom=1; panX=0; panY=0; applyTransform(); });
+
+  viewportEl.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const dir = e.deltaY > 0 ? -1 : 1;
+    setZoom(zoom + dir*0.15, e.clientX, e.clientY);
+  }, {passive:false});
+
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+  viewportEl.addEventListener('pointerdown', (e)=>{
+    if(dragCtx) return;
+    if(hammerActive) return; // let the tap fall through as a normal click for the hammer's boardEl listener
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    viewportEl.setPointerCapture(e.pointerId);
+    viewportEl.classList.add('panning');
+
+    if(pointers.size === 2){
+      isPanning = false;
+      const pts = Array.from(pointers.values());
+      pinchStartDist = dist(pts[0], pts[1]);
+      pinchStartZoom = zoom;
+      pinchMid = {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2};
+    } else if(pointers.size === 1){
+      isPanning = true;
+      panStart = {x:e.clientX, y:e.clientY};
+      panOrigin = {x:panX, y:panY};
+    }
+  });
+
+  viewportEl.addEventListener('pointermove', (e)=>{
+    if(!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+
+    if(pointers.size === 2){
+      const pts = Array.from(pointers.values());
+      const d = dist(pts[0], pts[1]);
+      if(pinchStartDist > 0){
+        const newZoom = pinchStartZoom * (d / pinchStartDist);
+        setZoom(newZoom, pinchMid.x, pinchMid.y);
+      }
+    } else if(isPanning && pointers.size === 1){
+      panX = panOrigin.x + (e.clientX - panStart.x);
+      panY = panOrigin.y + (e.clientY - panStart.y);
+      applyTransform();
+    }
+  });
+
+  function endPointer(e){
+    pointers.delete(e.pointerId);
+    if(pointers.size < 2){ pinchStartDist = 0; }
+    if(pointers.size === 0){ isPanning = false; viewportEl.classList.remove('panning'); }
+    else if(pointers.size === 1){
+      const [p] = pointers.values();
+      isPanning = true;
+      panStart = {x:p.x, y:p.y};
+      panOrigin = {x:panX, y:panY};
+    }
+  }
+  viewportEl.addEventListener('pointerup', endPointer);
+  viewportEl.addEventListener('pointercancel', endPointer);
+
+  window.addEventListener('resize', ()=>{ applyTransform(); renderTray(); });
+
+  function resetGame(){
+    engine.reset();
+    score = 0;
+    rescueUsed = false;
+    rescueBtn.disabled = false;
+    setHammerActive(false);
+    hammerUses = MAX_POWERUP_USES;
+    refreshHammerBtn();
+    shuffleUses = MAX_POWERUP_USES;
+    cancelShuffleConfirm();
+    manaUses = MAX_POWERUP_USES;
+    mana = 0;
+    updateManaUI();
+    startBossFight(bossLevel);
+    newQuests();
+    zoom = 1; panX = 0; panY = 0;
+    applyTransform();
+    overlay.classList.remove('show');
+    renderBoard();
+    updateScoreUI();
+    newTray();
+  }
+
+  document.getElementById('restart-btn').addEventListener('click', resetGame);
+
+  // ---- POWER-UP: HAMMER ----
+  let hammerActive = false;
+  let hammerUses = MAX_POWERUP_USES;
+  const hammerBtn = document.getElementById('hammer-btn');
+  const HAMMER_COST = 15;
+
+  // Centralizes every visual side-effect of arming/disarming the hammer —
+  // button highlight, board cursor (desktop), AND a pulsing border on the
+  // board viewport itself. The cursor:'cell' style is invisible on touch
+  // devices, so the pulsing border is what actually tells mobile players
+  // "tap a block now" instead of drag mode.
+  function setHammerActive(active){
+    hammerActive = active;
+    hammerBtn.style.background = active ? 'rgba(94, 231, 208, 0.2)' : '';
+    boardEl.style.cursor = active ? 'cell' : '';
+    viewportEl.classList.toggle('hammer-mode-active', active);
+  }
+
+  function refreshHammerBtn(){
+    hammerBtn.disabled = hammerUses <= 0;
+    hammerBtn.textContent = hammerUses > 0
+      ? `🔨 Hammer (${HAMMER_COST} 🪙) • ${hammerUses}/${MAX_POWERUP_USES}`
+      : '🔨 Hammer — used up';
+  }
+
+  hammerBtn.addEventListener('click', () => {
+    if (locked || hammerUses <= 0) return;
+    
+    if (hammerActive) {
+      // Deactivate if the player changed their mind
+      setHammerActive(false);
+      return;
+    }
+
+    if (coins < HAMMER_COST) {
+      hammerBtn.style.transform = 'scale(0.95)';
+      hammerBtn.style.borderColor = 'var(--danger)';
+      setTimeout(() => {
+        hammerBtn.style.transform = '';
+        hammerBtn.style.borderColor = 'var(--accent-2)';
+      }, 200);
+      return; // Not enough coins
+    }
+
+    setHammerActive(true);
+  });
+
+  // Handle a board click using the hammer
+  boardEl.addEventListener('click', (e) => {
+    if (!hammerActive || locked) return;
+    
+    const cellEl = e.target.closest('.cell');
+    if (!cellEl) return;
+
+    const r = parseInt(cellEl.dataset.r, 10);
+    const c = parseInt(cellEl.dataset.c, 10);
+    const idx = engine.idx(r, c);
+
+    // Clicked an empty cell — cancel hammer mode instead of leaving it
+    // silently armed, so the cursor/highlight don't stay stuck active.
+    if (engine.grid[idx] === T_EMPTY) {
+      setHammerActive(false);
+      return;
+    }
+
+    // Charge coins and reset the power-up state
+    coins -= HAMMER_COST;
+    hammerUses--;
+    setHammerActive(false);
+    updateScoreUI();
+    refreshHammerBtn();
+    scheduleSave();
+
+    // Wykorzystanie natywnego pipeline gry do destrukcji i kaskady
+    locked = true;
+    const destroyedMap = engine.destroyCells([idx]);
+    
+    // Efekty czyszczenia pola
+    const particlesPerCell = destroyedMap.size > 12 ? 4 : 6;
+    destroyedMap.forEach((rec, dIdx) => {
+      const dr = (dIdx / SIZE) | 0, dc = dIdx % SIZE;
+      spawnParticles(dr, dc, rec.type, rec.color, particlesPerCell);
+      cellEls[dr][dc].classList.add('clearing');
+      if(rec.type === T_TNT) playExplosionSound();
+    });
+
+    // Uruchomienie animacji opadania i ponownej weryfikacji combo
+    setTimeout(() => {
+      destroyedMap.forEach((_, dIdx) => {
+        const dr = (dIdx / SIZE) | 0, dc = dIdx % SIZE;
+        cellEls[dr][dc].classList.remove('clearing');
+      });
+      
+      // Hook into the gravity/cascade loop
+      runCascade();
+    }, 380);
+  });
+
+  refreshHammerBtn();
+
+  // ---- POWER-UP: SHUFFLE (reroll the tray) ----
+  // Discards all 3 current tray pieces and draws 3 fresh random ones —
+  // useful when every offered piece is a bad fit. Reuses newTray(), the
+  // same generator the game already calls when a set is used up, so piece
+  // weighting/special-cell odds stay perfectly consistent.
+  let shuffleUses = MAX_POWERUP_USES;
+  let shuffleConfirming = false;
+  let shuffleConfirmTimer = null;
+  const shuffleBtn = document.getElementById('shuffle-btn');
+  const SHUFFLE_COST = 25;
+
+  function refreshShuffleBtn(){
+    if(shuffleConfirming){
+      shuffleBtn.textContent = `❓ Confirm? (${SHUFFLE_COST} 🪙)`;
+      shuffleBtn.disabled = false;
+      return;
+    }
+    shuffleBtn.disabled = shuffleUses <= 0;
+    shuffleBtn.textContent = shuffleUses > 0
+      ? `🔀 Shuffle (${SHUFFLE_COST} 🪙) • ${shuffleUses}/${MAX_POWERUP_USES}`
+      : '🔀 Shuffle — used up';
+  }
+
+  function cancelShuffleConfirm(){
+    clearTimeout(shuffleConfirmTimer);
+    shuffleConfirming = false;
+    refreshShuffleBtn();
+  }
+
+  shuffleBtn.addEventListener('click', () => {
+    if (locked || shuffleUses <= 0) return;
+
+    if (coins < SHUFFLE_COST) {
+      cancelShuffleConfirm();
+      shuffleBtn.style.transform = 'scale(0.95)';
+      shuffleBtn.style.borderColor = 'var(--danger)';
+      setTimeout(() => {
+        shuffleBtn.style.transform = '';
+        shuffleBtn.style.borderColor = '#ffd166';
+      }, 200);
+      return;
+    }
+
+    // First tap: arm a confirmation instead of spending immediately — a
+    // second tap within 3s actually shuffles. Prevents an accidental tap
+    // from burning 25 coins mid-panic.
+    if(!shuffleConfirming){
+      shuffleConfirming = true;
+      refreshShuffleBtn();
+      clearTimeout(shuffleConfirmTimer);
+      shuffleConfirmTimer = setTimeout(cancelShuffleConfirm, 3000);
+      return;
+    }
+
+    // Second tap within the window: confirmed.
+    clearTimeout(shuffleConfirmTimer);
+    shuffleConfirming = false;
+    coins -= SHUFFLE_COST;
+    shuffleUses--;
+    updateScoreUI();
+    refreshShuffleBtn();
+    scheduleSave();
+    newTray();
+  });
+
+  refreshShuffleBtn();
+
+  renderBoard();
+  updateScoreUI();
+  updateManaUI();
+  applyAmbientTheme();
+  startBossFight(1);
+  newQuests();
+  applyTransform();
+  newTray();
+  loadProgress();
+})();
+</script>
+</body>
+</html>
