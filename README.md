@@ -28,21 +28,10 @@ Local Storage Auto-Save: Player stats, high scores, coin balance, and active gam
 
 Ultra Lightweight: Minimal file size ensures instant loading even on slow mobile networks.
 
-**💵 Monetization & Portal Ready**
-
-GameDistribution SDK Ready: Pre-built hooks for rewarded video ads and interstitial banner breaks.
-
-Easy SDK Swapping: Flexible code structure makes it quick to swap in Poki, CrazyGames, GamePix, or Google AdMob (for Cordova/Capacitor native builds).
-
-High Retention Design: The mix of casual block puzzle mechanics and RPG meta-progression keeps average session times significantly higher than basic puzzle clones.
 
 **📁 What’s Included in the Download**
 
 Full source code (index.html with modular inline JS and CSS)
-
-Complete asset setup and styling
-
-Documentation on adjusting game balance, modifying block shapes, and changing price points.
 
 ⚙️ System Requirements
 Any standard Web Server (Nginx, Apache, Netlify, Vercel, GitHub Pages) or local development environment.
